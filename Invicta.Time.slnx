@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Invicta.Time.App/Invicta.Time.App.csproj" />
+  <Project Path="Invicta.Time/Invicta.Time.csproj" />
+</Solution>

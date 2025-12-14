@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Invicta.Time.App": {
+      "commandName": "Project",
+      "commandLineArgs": "1000 5"
+    }
+  }
+}

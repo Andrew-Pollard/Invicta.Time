@@ -1,5 +1,4 @@
-﻿using System.ComponentModel;
-using System.Runtime.Versioning;
+﻿using System.Runtime.Versioning;
 
 namespace Invicta.Time;
 
@@ -31,10 +30,7 @@ internal sealed class HighResolutionWaitableTimerTimer : ITimer
             executeOnlyOnce: false
         );
 
-        if (!Change(dueTime, period))
-        {
-            throw new Win32Exception();
-        }
+        _ = Change(dueTime, period);
     }
 
     private void OnTimerSignaled(object? state, bool timedOut)

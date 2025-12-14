@@ -7,7 +7,7 @@ using System.Runtime.Versioning;
 namespace Invicta.Time;
 
 [SupportedOSPlatform("windows")]
-public sealed unsafe class WaitableTimer : WaitHandle
+public sealed class WaitableTimer : WaitHandle
 {
     private const uint AccessRights = Kernel32.TIMER_ALL_ACCESS;
 
@@ -36,7 +36,7 @@ public sealed unsafe class WaitableTimer : WaitHandle
 
     public bool Set(TimeSpan dueTime, TimeSpan period)
     {
-        return Kernel32.SetWaitableTimerEx(SafeWaitHandle, -dueTime.Ticks, (int)period.TotalMilliseconds, null, nint.Zero, nint.Zero, 0);
+        return Kernel32.SetWaitableTimerEx(SafeWaitHandle, -dueTime.Ticks, (int)period.TotalMilliseconds, nint.Zero, nint.Zero, nint.Zero, 0);
     }
 
     public bool Cancel()

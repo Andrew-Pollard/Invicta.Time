@@ -22,11 +22,11 @@ internal static partial class Kernel32
 
     [LibraryImport(LibraryName, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    public static unsafe partial bool SetWaitableTimerEx(
+    public static partial bool SetWaitableTimerEx(
         SafeWaitHandle hTimer,
         in long lpDueTime,
         int lPeriod,
-        delegate* unmanaged[Stdcall]<nint, uint, uint, void> pfnCompletionRoutine,
+        nint pfnCompletionRoutine,
         nint lpArgToCompletionRoutine,
         nint WakeContext,
         uint TolerableDelay

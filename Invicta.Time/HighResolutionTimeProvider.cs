@@ -1,8 +1,4 @@
-﻿using Invicta.Time.Native;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
-
-using static Invicta.Time.Native.Avrt;
+﻿using System.Runtime.InteropServices;
 
 namespace Invicta.Time;
 
@@ -17,14 +13,6 @@ public sealed class HighResolutionTimeProvider : TimeProvider
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            //uint taskIndex = 0;
-            //nint task = AvSetMmThreadCharacteristicsW("Games", ref taskIndex);
-            //if (task == nint.Zero)
-            //{
-            //    throw new Win32Exception();
-            //}
-            //_ = AvSetMmThreadPriority(task, AVRT_PRIORITY.AVRT_PRIORITY_HIGH);
-
             return new HighResolutionWaitableTimerTimer(callback, state, dueTime, period);
         }
 

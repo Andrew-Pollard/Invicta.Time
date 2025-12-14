@@ -9,7 +9,7 @@ internal sealed class Program
         int iterations = int.Parse(args[0]);
         TimeSpan interval = TimeSpan.FromMilliseconds(double.Parse(args[1]));
 
-        using PeriodicTimer timer = new(interval, WaitableTimerHighResolutionTimeProvider.Instance);
+        using PeriodicTimer timer = new(interval, HighResolutionTimeProvider.Instance);
 
         List<TimeSpan> waits = new(iterations);
 

@@ -6,7 +6,7 @@ using System.Runtime.Versioning;
 
 namespace Invicta.Time;
 
-[SupportedOSPlatform("windows10.0.17134.0")]
+[SupportedOSPlatform("windows6.1.7600.0")]
 public sealed class WaitableTimer : WaitHandle
 {
     private const uint AccessRights = Kernel32.TIMER_ALL_ACCESS;
@@ -23,6 +23,11 @@ public sealed class WaitableTimer : WaitHandle
         }
         if (resolution == WaitableTimerResolution.High)
         {
+            if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17134))
+            {
+                throw new PlatformNotSupportedException();
+            }
+
             flags |= Kernel32.CREATE_WAITABLE_TIMER_HIGH_RESOLUTION;
         }
 

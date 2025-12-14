@@ -6,7 +6,7 @@ using System.Runtime.Versioning;
 
 namespace Invicta.Time;
 
-[SupportedOSPlatform("windows")]
+[SupportedOSPlatform("windows10.0.17134.0")]
 public sealed class WaitableTimer : WaitHandle
 {
     private const uint AccessRights = Kernel32.TIMER_ALL_ACCESS;

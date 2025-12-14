@@ -2,7 +2,7 @@
 
 namespace Invicta.Time;
 
-[SupportedOSPlatform("windows")]
+[SupportedOSPlatform("windows10.0.17134.0")]
 internal sealed class HighResolutionWaitableTimerTimer : ITimer
 {
     private bool _disposed;

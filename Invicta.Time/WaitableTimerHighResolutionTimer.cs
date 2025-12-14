@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+
 using static Invicta.Time.Native.Kernel32;
 using static Invicta.Time.Native.Winmm;
 
@@ -8,11 +7,12 @@ namespace Invicta.Time;
 
 internal sealed class WaitableTimerHighResolutionTimer : ITimer
 {
-    private record Context(TimerCallback Callback, object? State);
-
     private bool _disposed;
 
-    private readonly GCHandle _contextHandle;
+    private readonly TimerCallback _callback;
+    private readonly object? _state;
+    private readonly CancellationTokenSource _waitForTicksCts;
+    private readonly Task _waitForTicksTask;
 
     private readonly nint _timer;
 
@@ -20,24 +20,19 @@ internal sealed class WaitableTimerHighResolutionTimer : ITimer
     {
         ArgumentNullException.ThrowIfNull(callback);
 
-        ArgumentOutOfRangeException.ThrowIfLessThan(dueTime.TotalMilliseconds, Timeout.Infinite);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(dueTime.TotalMilliseconds, int.MaxValue);
-
-        ArgumentOutOfRangeException.ThrowIfLessThan(period.TotalMilliseconds, Timeout.Infinite);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(period.TotalMilliseconds, int.MaxValue);
-
-        Context context = new(callback, state);
-        _contextHandle = GCHandle.Alloc(context);
+        _callback = callback;
+        _state = state;
+        _waitForTicksCts = new CancellationTokenSource();
 
         if (timeBeginPeriod(1) != TIMERR_NOERROR)
         {
-            throw new PlatformNotSupportedException("Failed to set minimum resolution for periodic timers.");
+            throw new InvalidOperationException("Failed to set minimum resolution for periodic timers.");
         }
 
         _timer = CreateWaitableTimerExW(
             nint.Zero,
             nint.Zero,
-            0,
+            CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
             TIMER_ALL_ACCESS
         );
 
@@ -46,12 +41,12 @@ internal sealed class WaitableTimerHighResolutionTimer : ITimer
             throw new Win32Exception();
         }
 
-        bool result = Change(dueTime, period);
-
-        if (!result)
+        if (!Change(dueTime, period))
         {
             throw new Win32Exception();
         }
+
+        _waitForTicksTask = Task.Run(WaitForTicks, _waitForTicksCts.Token);
     }
 
     public unsafe bool Change(TimeSpan dueTime, TimeSpan period)
@@ -62,16 +57,18 @@ internal sealed class WaitableTimerHighResolutionTimer : ITimer
         ArgumentOutOfRangeException.ThrowIfLessThan(period.TotalMilliseconds, Timeout.Infinite);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(period.TotalMilliseconds, 4294967294);
 
-        return SetWaitableTimer(_timer, -dueTime.Ticks, (int)period.TotalMilliseconds, &TimerApcRoutine, GCHandle.ToIntPtr(_contextHandle), false);
+        return SetWaitableTimerEx(_timer, -dueTime.Ticks, (int)period.TotalMilliseconds, null, nint.Zero, nint.Zero, 0);
     }
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvStdcall) })]
-    private static void TimerApcRoutine(nint lpArgToCompletionRoutine, uint dwTimerLowValue, uint dwTimerHighValue)
+    private void WaitForTicks()
     {
-        GCHandle contextHandle = GCHandle.FromIntPtr(lpArgToCompletionRoutine);
-        (TimerCallback callback, object? state) = (Context)contextHandle.Target!;
-
-        callback(state);
+        while (!_waitForTicksCts.IsCancellationRequested)
+        {
+            if (WaitForMultipleObjects(1, [_timer], true, 1) == WAIT_OBJECT_0)
+            {
+                _callback(_state);
+            }
+        }
     }
 
     private void Dispose(bool disposing)
@@ -80,40 +77,45 @@ internal sealed class WaitableTimerHighResolutionTimer : ITimer
         {
             if (disposing)
             {
-                // TODO: dispose managed state (managed objects)
-                _contextHandle.Free();
+                _waitForTicksCts.Cancel();
+                _waitForTicksTask.Wait();
+
+                _waitForTicksTask.Dispose();
+                _waitForTicksCts.Dispose();
             }
 
-            // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+            _ = CancelWaitableTimer(_timer);
+            _ = CloseHandle(_timer);
+
             if (timeEndPeriod(1) != TIMERR_NOERROR)
             {
-                throw new PlatformNotSupportedException("Failed to clear minimum resolution for periodic timers.");
+                throw new InvalidOperationException("Failed to clear minimum resolution for periodic timers.");
             }
 
-            // TODO: set large fields to null
             _disposed = true;
         }
     }
 
-    // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
     ~WaitableTimerHighResolutionTimer()
     {
-        // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
         Dispose(disposing: false);
     }
 
     public void Dispose()
     {
-        // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
+        await _waitForTicksCts.CancelAsync();
+        await _waitForTicksTask;
 
-        return ValueTask.CompletedTask;
+        _waitForTicksTask.Dispose();
+        _waitForTicksCts.Dispose();
+
+        Dispose(disposing: false);
+        GC.SuppressFinalize(this);
     }
 }

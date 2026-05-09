@@ -2,7 +2,7 @@
 
 public sealed class HighResolutionTimeProvider : TimeProvider
 {
-    public static TimeProvider Instance => _lazy.Value;
+    internal static TimeProvider Instance => _lazy.Value;
     private static readonly Lazy<TimeProvider> _lazy = new(() => new HighResolutionTimeProvider());
 
     private HighResolutionTimeProvider() { }

@@ -2,7 +2,7 @@
 
 namespace Invicta.Time;
 
-public enum WaitableTimerResolution
+internal enum WaitableTimerResolution
 {
     Default,
     [SupportedOSPlatform("windows10.0.17134.0")]

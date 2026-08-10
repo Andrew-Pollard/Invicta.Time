@@ -1,6 +1,6 @@
 ﻿namespace Invicta.Time;
 
-public enum WaitableTimerResetMode
+internal enum WaitableTimerResetMode
 {
     AutoReset = 0,
     ManualReset = 1

@@ -1,8 +1,8 @@
 ﻿namespace Invicta.Time;
 
-public sealed class HighResolutionTimeProvider : TimeProvider
+internal sealed class HighResolutionTimeProvider : TimeProvider
 {
-    internal static TimeProvider Instance => _lazy.Value;
+    public static TimeProvider Instance => _lazy.Value;
     private static readonly Lazy<TimeProvider> _lazy = new(() => new HighResolutionTimeProvider());
 
     private HighResolutionTimeProvider() { }

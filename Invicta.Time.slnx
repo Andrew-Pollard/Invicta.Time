@@ -1,4 +1,10 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="README.md" />
+  </Folder>
   <Project Path="Invicta.Time.App/Invicta.Time.App.csproj" />
   <Project Path="Invicta.Time/Invicta.Time.csproj" />
 </Solution>

@@ -5,6 +5,24 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+    <Version>1.0.0-alpha.1</Version>
+
+    <Authors>Andrew Pollard</Authors>
+    <Description>A high resolution implementation of System.TimeProvider for Windows 10 Version 1803 and later.</Description>
+    <Copyright>Copyright (c) Andrew Pollard.</Copyright>
+    <PackageProjectUrl>https://github.com/Andrew-Pollard/Invicta.Time</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/Andrew-Pollard/Invicta.Time</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>invicta time windows 10 1803 17134 highresolution timeprovider</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Visible="false" Pack="true" PackagePath=""/>
+  </ItemGroup>
 
 </Project>

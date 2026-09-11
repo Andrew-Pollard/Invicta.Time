@@ -21,17 +21,21 @@ namespace Invicta;
 /// pool, like <see cref="System.Threading.Timer"/>, so a starved thread pool will still delay them.
 /// </para>
 /// <para>
-/// Use the shared instance via the <c>TimeProvider.HighResolution</c> extension property. Instances are
-/// stateless, so constructing a new one is equivalent.
-/// </para>
-/// <para>
-/// Requires Windows 10 version 1803 (build 17134) or later. Check <see cref="IsSupported"/> before use.
+/// Requires Windows 10 version 1803 (build 17134) or later. Check <see cref="IsSupported"/> before using
+/// <see cref="Instance"/>.
 /// </para>
 /// </remarks>
 [SupportedOSPlatform("windows10.0.17134")]
-public class HighResolutionTimeProvider : TimeProvider
+public sealed class HighResolutionTimeProvider : TimeProvider
 {
-    /// <summary>Whether the current OS supports high-resolution waitable timers.</summary>
+    private HighResolutionTimeProvider()
+    {
+    }
+
+    /// <summary>Gets the shared <see cref="HighResolutionTimeProvider"/> instance.</summary>
+    public static HighResolutionTimeProvider Instance { get; } = new();
+
+    /// <summary>Gets whether the current OS supports high-resolution waitable timers.</summary>
     [SupportedOSPlatformGuard("windows10.0.17134")]
     public static bool IsSupported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17134);
 

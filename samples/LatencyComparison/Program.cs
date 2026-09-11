@@ -8,7 +8,7 @@ using Invicta;
 const int Samples = 200;
 
 await Measure("TimeProvider.System", TimeProvider.System);
-await Measure("TimeProvider.HighResolution", TimeProvider.HighResolution);
+await Measure("HighResolutionTimeProvider.Instance", HighResolutionTimeProvider.Instance);
 
 static async Task Measure(string name, TimeProvider provider)
 {

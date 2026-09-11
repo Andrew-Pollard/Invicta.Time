@@ -6,7 +6,7 @@ A `System.TimeProvider` whose timers use Windows high-resolution waitable timers
 ```csharp
 using Invicta;
 
-TimeProvider clock = TimeProvider.HighResolution; // C# 14 extension property, alongside TimeProvider.System
+TimeProvider clock = HighResolutionTimeProvider.Instance;
 
 await Task.Delay(TimeSpan.FromMilliseconds(1), clock);            // ~1.5 ms instead of ~1–16 ms
 using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2), clock);

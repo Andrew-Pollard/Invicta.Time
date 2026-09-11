@@ -11,16 +11,17 @@ namespace Invicta;
 
 public class HighResolutionTimeProviderTests
 {
-    private static readonly TimeProvider s_provider = TimeProvider.HighResolution;
+    private static readonly TimeProvider s_provider = HighResolutionTimeProvider.Instance;
 
     [Fact]
     public void IsSupportedOnThisMachine() => Assert.True(HighResolutionTimeProvider.IsSupported);
 
     [Fact]
-    public void HighResolution_ReturnsSharedHighResolutionTimeProvider()
+    public void Instance_IsSharedAndTheOnlyWayToGetOne()
     {
-        Assert.IsType<HighResolutionTimeProvider>(TimeProvider.HighResolution);
-        Assert.Same(TimeProvider.HighResolution, TimeProvider.HighResolution);
+        Assert.Same(HighResolutionTimeProvider.Instance, HighResolutionTimeProvider.Instance);
+        Assert.True(typeof(HighResolutionTimeProvider).IsSealed);
+        Assert.Empty(typeof(HighResolutionTimeProvider).GetConstructors());
     }
 
     [Fact]

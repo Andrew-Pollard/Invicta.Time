@@ -11,10 +11,17 @@ namespace HighResolutionTime.Tests;
 
 public class HighResolutionTimeProviderTests
 {
-    private static readonly TimeProvider s_provider = HighResolutionTimeProvider.Instance;
+    private static readonly TimeProvider s_provider = TimeProvider.HighResolution;
 
     [Fact]
     public void IsSupportedOnThisMachine() => Assert.True(HighResolutionTimeProvider.IsSupported);
+
+    [Fact]
+    public void HighResolution_ReturnsSharedHighResolutionTimeProvider()
+    {
+        Assert.IsType<HighResolutionTimeProvider>(TimeProvider.HighResolution);
+        Assert.Same(TimeProvider.HighResolution, TimeProvider.HighResolution);
+    }
 
     [Fact]
     public async Task TaskDelay_OneMillisecond_IsFarBelowSystemTickResolution()

@@ -4,7 +4,9 @@ A `System.TimeProvider` whose timers use Windows high-resolution waitable timers
 (`CreateWaitableTimerExW` + `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`) instead of the ~15.6 ms system clock tick.
 
 ```csharp
-TimeProvider clock = HighResolutionTimeProvider.Instance;
+using HighResolutionTime;
+
+TimeProvider clock = TimeProvider.HighResolution; // C# 14 extension property, alongside TimeProvider.System
 
 await Task.Delay(TimeSpan.FromMilliseconds(1), clock);            // ~1.5 ms instead of ~1–16 ms
 using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2), clock);

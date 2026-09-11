@@ -8,7 +8,7 @@ using HighResolutionTime;
 const int Samples = 200;
 
 await Measure("TimeProvider.System", TimeProvider.System);
-await Measure("HighResolutionTimeProvider", HighResolutionTimeProvider.Instance);
+await Measure("TimeProvider.HighResolution", TimeProvider.HighResolution);
 
 static async Task Measure(string name, TimeProvider provider)
 {

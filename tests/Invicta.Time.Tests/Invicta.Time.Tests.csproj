@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\HighResolutionTimeProvider\HighResolutionTimeProvider.csproj" />
+    <ProjectReference Include="..\..\src\Invicta.Time\Invicta.Time.csproj" />
   </ItemGroup>
 
 </Project>

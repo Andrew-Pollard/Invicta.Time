@@ -1,4 +1,4 @@
-# HighResolutionTimeProvider
+# Invicta.Time
 
 A `System.TimeProvider` whose timers use Windows high-resolution waitable timers
 (`CreateWaitableTimerExW` + `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`) instead of the ~15.6 ms system clock tick.

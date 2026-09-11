@@ -2,6 +2,7 @@
 
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
+using unsafe PTIMERAPCROUTINE = delegate* unmanaged<void*, uint, uint, void>;
 
 namespace Invicta;
 
@@ -32,7 +33,7 @@ internal static unsafe partial class Kernel32
         SafeWaitHandle hTimer,
         in long lpDueTime,
         int lPeriod,
-        delegate* unmanaged<void*, uint, uint, void> pfnCompletionRoutine,
+        PTIMERAPCROUTINE pfnCompletionRoutine,
         void* lpArgToCompletionRoutine,
         int fResume);
 

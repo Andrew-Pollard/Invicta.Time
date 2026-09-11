@@ -169,22 +169,22 @@ file_header_template = © 2026 Andrew Pollard. All rights reserved.
 curly_bracket_next_line = true
 indent_brace_style = Allman
 
-# Xml project files
-[*.{csproj,vbproj,vcxproj,vcxproj.filters,proj,nativeproj,locproj}]
+# XML solution and project files
+[*.{slnx,csproj,vbproj,vcxproj,vcxproj.filters,proj,nativeproj,locproj}]
 indent_size = 2
 
-[*.{csproj,vbproj,proj,nativeproj,locproj}]
+[*.{slnx,csproj,vbproj,proj,nativeproj,locproj}]
 charset = utf-8
 
-# Xml build files
+# XML build files
 [*.builds]
 indent_size = 2
 
-# Xml files
+# XML files
 [*.{xml,stylecop,resx,ruleset}]
 indent_size = 2
 
-# Xml config files
+# XML config files
 [*.{props,targets,config,nuspec}]
 indent_size = 2
 

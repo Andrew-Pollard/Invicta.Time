@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>HighResolutionTime</RootNamespace>
+    <PackageId>HighResolutionTimeProvider</PackageId>
+    <Description>A System.TimeProvider whose timers use Windows high-resolution waitable timers (CREATE_WAITABLE_TIMER_HIGH_RESOLUTION) instead of the ~15.6 ms system clock tick.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="HighResolutionTimeProvider.Tests" />
+  </ItemGroup>
+
+</Project>

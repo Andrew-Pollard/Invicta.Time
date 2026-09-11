@@ -1,12 +1,12 @@
 // © 2026 Andrew Pollard. All rights reserved.
 
-using Xunit;
+using NUnit.Framework;
 
 namespace Invicta.Threading;
 
 public class TimerHeapTests
 {
-    [Fact]
+    [Test]
     public void RandomInsertsAndRemovals_PopInDueOrder()
     {
         var random = new Random(1234);
@@ -20,7 +20,7 @@ public class TimerHeapTests
                 TimerEntry victim = live[random.Next(live.Count)];
                 heap.Remove(victim);
                 live.Remove(victim);
-                Assert.Equal(-1, victim.HeapIndex);
+                Assert.That(victim.HeapIndex, Is.EqualTo(-1));
             }
             else
             {
@@ -30,24 +30,24 @@ public class TimerHeapTests
             }
         }
 
-        Assert.Equal(live.Count, heap.Count);
+        Assert.That(heap.Count, Is.EqualTo(live.Count));
 
         long previous = long.MinValue;
         while (heap.Peek() is { } min)
         {
-            Assert.True(min.DueTimestamp >= previous);
+            Assert.That(min.DueTimestamp, Is.GreaterThanOrEqualTo(previous));
             previous = min.DueTimestamp;
             heap.RemoveMin();
         }
 
-        Assert.Equal(0, heap.Count);
+        Assert.That(heap.Count, Is.Zero);
     }
 
-    [Fact]
+    [Test]
     public void Remove_NotInHeap_IsNoOp()
     {
         var heap = new TimerHeap();
         heap.Remove(new TimerEntry(_ => { }, null, null));
-        Assert.Equal(0, heap.Count);
+        Assert.That(heap.Count, Is.Zero);
     }
 }

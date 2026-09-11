@@ -2,10 +2,10 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using Xunit;
+using NUnit.Framework;
 
-// Latency assertions are unreliable when tests compete for the thread pool.
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+// Latency assertions are unreliable when tests compete for the thread pool, so never run tests in parallel.
+[assembly: Parallelizable(ParallelScope.None)]
 
 namespace Invicta;
 
@@ -13,22 +13,34 @@ public class HighResolutionTimeProviderTests
 {
     private static readonly TimeProvider s_provider = HighResolutionTimeProvider.Instance;
 
-    [Fact]
-    public void IsSupportedOnThisMachine() => Assert.True(HighResolutionTimeProvider.IsSupported);
-
-    [Fact]
-    public void Instance_IsSharedAndTheOnlyWayToGetOne()
+    [OneTimeSetUp]
+    public async Task WarmUpScheduler()
     {
-        Assert.Same(HighResolutionTimeProvider.Instance, HighResolutionTimeProvider.Instance);
-        Assert.True(typeof(HighResolutionTimeProvider).IsSealed);
-        Assert.Empty(typeof(HighResolutionTimeProvider).GetConstructors());
+        // Start the scheduler thread and JIT the timer path up front, so whichever test runs first isn't
+        // measuring one-off start-up cost.
+        await Task.Delay(TimeSpan.FromMilliseconds(1), s_provider);
     }
 
-    [Fact]
+    [Test]
+    public void IsSupportedOnThisMachine() => Assert.That(HighResolutionTimeProvider.IsSupported, Is.True);
+
+    [Test]
+    public void Instance_IsSharedAndTheOnlyWayToGetOne()
+    {
+        HighResolutionTimeProvider first = HighResolutionTimeProvider.Instance;
+        HighResolutionTimeProvider second = HighResolutionTimeProvider.Instance;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(typeof(HighResolutionTimeProvider).IsSealed, Is.True);
+            Assert.That(typeof(HighResolutionTimeProvider).GetConstructors(), Is.Empty);
+        }
+    }
+
+    [Test]
     public async Task TaskDelay_OneMillisecond_IsFarBelowSystemTickResolution()
     {
-        await Task.Delay(TimeSpan.FromMilliseconds(1), s_provider); // warm up the scheduler thread
-
         double[] samples = new double[50];
         for (int i = 0; i < samples.Length; i++)
         {
@@ -38,11 +50,14 @@ public class HighResolutionTimeProviderTests
         }
 
         Array.Sort(samples);
-        Assert.True(samples[0] >= 1.0, $"Fired early: min {samples[0]:F3} ms");
-        Assert.True(samples[samples.Length / 2] < 5.0, $"Median {samples[samples.Length / 2]:F3} ms");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(samples[0], Is.GreaterThanOrEqualTo(1.0), "Minimum delay (ms); below 1 is early");
+            Assert.That(samples[samples.Length / 2], Is.LessThan(5.0), "Median delay (ms)");
+        }
     }
 
-    [Fact]
+    [Test]
     public async Task OneShot_FiresOnceAndNeverBeforeDueTime()
     {
         int count = 0;
@@ -62,11 +77,14 @@ public class HighResolutionTimeProviderTests
         TimeSpan elapsed = await fired.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Task.Delay(50);
 
-        Assert.True(elapsed >= TimeSpan.FromMilliseconds(3), $"Fired after {elapsed.TotalMilliseconds:F3} ms");
-        Assert.Equal(1, Volatile.Read(ref count));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(elapsed, Is.GreaterThanOrEqualTo(TimeSpan.FromMilliseconds(3)));
+            Assert.That(Volatile.Read(ref count), Is.EqualTo(1));
+        }
     }
 
-    [Fact]
+    [Test]
     public async Task ZeroDueTime_FiresImmediately()
     {
         var fired = new TaskCompletionSource();
@@ -76,7 +94,7 @@ public class HighResolutionTimeProviderTests
         await fired.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
-    [Fact]
+    [Test]
     public async Task Periodic_OneMillisecond_FiresAtRoughlyOneKilohertz()
     {
         int count = 0;
@@ -88,10 +106,10 @@ public class HighResolutionTimeProviderTests
         int fired = Volatile.Read(ref count);
 
         // A 15.6 ms tick-based timer would manage ~32 in 500 ms.
-        Assert.InRange(fired, 300, 520);
+        Assert.That(fired, Is.InRange(300, 520));
     }
 
-    [Fact]
+    [Test]
     public async Task Change_ToInfinite_StopsTimer_AndCanRestart()
     {
         int count = 0;
@@ -99,18 +117,24 @@ public class HighResolutionTimeProviderTests
             _ => Interlocked.Increment(ref count), null, TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(1));
         await Task.Delay(30);
 
-        Assert.True(timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan));
+        Assert.That(timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan), Is.True);
         await Task.Delay(20); // let in-flight callbacks drain
         int stopped = Volatile.Read(ref count);
         await Task.Delay(50);
-        Assert.Equal(stopped, Volatile.Read(ref count));
+        int stillStopped = Volatile.Read(ref count);
 
-        Assert.True(timer.Change(TimeSpan.FromMilliseconds(1), Timeout.InfiniteTimeSpan));
+        bool restarted = timer.Change(TimeSpan.FromMilliseconds(1), Timeout.InfiniteTimeSpan);
         await Task.Delay(50);
-        Assert.Equal(stopped + 1, Volatile.Read(ref count));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stillStopped, Is.EqualTo(stopped), "Callback count while stopped");
+            Assert.That(restarted, Is.True);
+            Assert.That(Volatile.Read(ref count), Is.EqualTo(stopped + 1), "Callback count after one-shot restart");
+        }
     }
 
-    [Fact]
+    [Test]
     public async Task Change_Reschedules_EarlierAndLater()
     {
         var fired = new TaskCompletionSource<TimeSpan>();
@@ -123,10 +147,10 @@ public class HighResolutionTimeProviderTests
 
         timer.Change(TimeSpan.FromMilliseconds(2), Timeout.InfiniteTimeSpan);
         TimeSpan elapsed = await fired.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(elapsed < TimeSpan.FromSeconds(1));
+        Assert.That(elapsed, Is.LessThan(TimeSpan.FromSeconds(1)));
     }
 
-    [Fact]
+    [Test]
     public async Task Dispose_StopsCallbacks_AndChangeReturnsFalse()
     {
         int count = 0;
@@ -138,16 +162,19 @@ public class HighResolutionTimeProviderTests
         int afterDispose = Volatile.Read(ref count);
         await Task.Delay(50);
 
-        Assert.Equal(afterDispose, Volatile.Read(ref count));
-        Assert.False(timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan));
-        timer.Dispose(); // idempotent
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Volatile.Read(ref count), Is.EqualTo(afterDispose));
+            Assert.That(timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan), Is.False);
+            Assert.That(() => timer.Dispose(), Throws.Nothing, "Dispose should be idempotent");
+        }
     }
 
-    [Fact]
+    [Test]
     public async Task DisposeAsync_WaitsForRunningCallback()
     {
         var entered = new TaskCompletionSource();
-        var release = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
         bool finished = false;
 
         ITimer timer = s_provider.CreateTimer(
@@ -163,14 +190,14 @@ public class HighResolutionTimeProviderTests
 
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         ValueTask disposal = timer.DisposeAsync();
-        Assert.False(disposal.IsCompleted);
+        Assert.That(disposal.IsCompleted, Is.False);
 
         release.Set();
         await disposal.AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(Volatile.Read(ref finished));
+        Assert.That(Volatile.Read(ref finished), Is.True);
     }
 
-    [Fact]
+    [Test]
     public async Task ExecutionContext_FlowsToCallback()
     {
         var local = new AsyncLocal<string> { Value = "flowed" };
@@ -179,10 +206,10 @@ public class HighResolutionTimeProviderTests
         using ITimer timer = s_provider.CreateTimer(
             _ => observed.TrySetResult(local.Value), null, TimeSpan.FromMilliseconds(1), Timeout.InfiniteTimeSpan);
 
-        Assert.Equal("flowed", await observed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.That(await observed.Task.WaitAsync(TimeSpan.FromSeconds(5)), Is.EqualTo("flowed"));
     }
 
-    [Fact]
+    [Test]
     public async Task ExecutionContext_NotFlowedWhenSuppressed()
     {
         var local = new AsyncLocal<string> { Value = "flowed" };
@@ -200,11 +227,11 @@ public class HighResolutionTimeProviderTests
 
         using (timer)
         {
-            Assert.Null(await observed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.That(await observed.Task.WaitAsync(TimeSpan.FromSeconds(5)), Is.Null);
         }
     }
 
-    [Fact]
+    [Test]
     public async Task ManyTimers_EachFiresOnceAndNotEarly()
     {
         const int TimerCount = 500;
@@ -237,7 +264,7 @@ public class HighResolutionTimeProviderTests
         }
 
         await done.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(0, Volatile.Read(ref early));
+        Assert.That(Volatile.Read(ref early), Is.Zero, "Timers that fired before their due time");
 
         foreach (ITimer timer in timers)
         {
@@ -245,7 +272,7 @@ public class HighResolutionTimeProviderTests
         }
     }
 
-    [Fact]
+    [Test]
     public async Task CancellationTokenSource_WithProvider_CancelsOnTime()
     {
         long start = Stopwatch.GetTimestamp();
@@ -254,30 +281,30 @@ public class HighResolutionTimeProviderTests
         cts.Token.Register(() => cancelled.TrySetResult(Stopwatch.GetElapsedTime(start)));
 
         TimeSpan elapsed = await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(elapsed < TimeSpan.FromMilliseconds(10), $"Cancelled after {elapsed.TotalMilliseconds:F3} ms");
+        Assert.That(elapsed, Is.LessThan(TimeSpan.FromMilliseconds(10)));
     }
 
-    [Fact]
+    [Test]
     public async Task PeriodicTimer_WithProvider_Ticks()
     {
         using var periodic = new PeriodicTimer(TimeSpan.FromMilliseconds(1), s_provider);
         long start = Stopwatch.GetTimestamp();
         for (int i = 0; i < 20; i++)
         {
-            Assert.True(await periodic.WaitForNextTickAsync());
+            Assert.That(await periodic.WaitForNextTickAsync(), Is.True);
         }
 
-        Assert.True(Stopwatch.GetElapsedTime(start) < TimeSpan.FromMilliseconds(100));
+        Assert.That(Stopwatch.GetElapsedTime(start), Is.LessThan(TimeSpan.FromMilliseconds(100)));
     }
 
-    [Fact]
+    [Test]
     public async Task UnreferencedTimer_IsCollectedAndStops()
     {
         var counter = new StrongBox<int>();
         CreateAbandonedTimer(counter);
 
         await Task.Delay(20);
-        Assert.True(Volatile.Read(ref counter.Value) > 0);
+        Assert.That(Volatile.Read(ref counter.Value), Is.Positive);
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -286,22 +313,32 @@ public class HighResolutionTimeProviderTests
 
         int afterCollect = Volatile.Read(ref counter.Value);
         await Task.Delay(50);
-        Assert.Equal(afterCollect, Volatile.Read(ref counter.Value));
+        Assert.That(Volatile.Read(ref counter.Value), Is.EqualTo(afterCollect));
     }
 
-    [Fact]
+    [Test]
     public void InvalidArguments_Throw()
     {
-        Assert.Throws<ArgumentNullException>(() => s_provider.CreateTimer(null!, null, TimeSpan.Zero, TimeSpan.Zero));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => s_provider.CreateTimer(_ => { }, null, TimeSpan.FromMilliseconds(-2), TimeSpan.Zero));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => s_provider.CreateTimer(_ => { }, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(-2)));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => s_provider.CreateTimer(_ => { }, null, TimeSpan.FromDays(50), TimeSpan.Zero));
-
         using ITimer timer = s_provider.CreateTimer(_ => { }, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        Assert.Throws<ArgumentOutOfRangeException>(() => timer.Change(TimeSpan.FromMilliseconds(-2), TimeSpan.Zero));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                () => s_provider.CreateTimer(null!, null, TimeSpan.Zero, TimeSpan.Zero),
+                Throws.ArgumentNullException);
+            Assert.That(
+                () => s_provider.CreateTimer(_ => { }, null, TimeSpan.FromMilliseconds(-2), TimeSpan.Zero),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That(
+                () => s_provider.CreateTimer(_ => { }, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(-2)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That(
+                () => s_provider.CreateTimer(_ => { }, null, TimeSpan.FromDays(50), TimeSpan.Zero),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That(
+                () => timer.Change(TimeSpan.FromMilliseconds(-2), TimeSpan.Zero),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

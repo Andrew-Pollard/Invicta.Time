@@ -30,10 +30,13 @@ internal sealed class TimerScheduler
     // Stopwatch timestamp the kernel timer is armed for, or long.MaxValue if unarmed. Guarded by _lock.
     private long _armedDue = long.MaxValue;
 
-    private TimerScheduler()
+    private unsafe TimerScheduler()
     {
-        _timerHandle = Interop.CreateWaitableTimerEx(
-            0, 0, Interop.CreateWaitableTimerHighResolution, Interop.TimerModifyState | Interop.Synchronize);
+        _timerHandle = Kernel32.CreateWaitableTimerExW(
+            lpTimerAttributes: null,
+            lpTimerName: null,
+            Kernel32.CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+            Kernel32.TIMER_MODIFY_STATE | Kernel32.SYNCHRONIZE);
         if (_timerHandle.IsInvalid)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "CreateWaitableTimerExW failed.");
@@ -82,7 +85,7 @@ internal sealed class TimerScheduler
         }
     }
 
-    private void Arm(long dueTimestamp, long now)
+    private unsafe void Arm(long dueTimestamp, long now)
     {
         // Relative due times are negative, in 100 ns units. Round up so we never wake before the due time
         // (if the kernel still wakes us slightly early, the loop just re-arms for the remainder).
@@ -92,7 +95,7 @@ internal sealed class TimerScheduler
             : (long)(((Int128)delta * TimeSpan.TicksPerSecond + Stopwatch.Frequency - 1) / Stopwatch.Frequency);
         long relative = -Math.Max(hundredNs, 1);
 
-        if (!Interop.SetWaitableTimer(_timerHandle, in relative, 0, 0, 0, false))
+        if (Kernel32.SetWaitableTimer(_timerHandle, in relative, 0, null, null, fResume: 0) == 0)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
         }
@@ -104,7 +107,7 @@ internal sealed class TimerScheduler
     {
         while (true)
         {
-            if (Interop.WaitForSingleObject(_timerHandle, Interop.Infinite) == Interop.WaitFailed)
+            if (Kernel32.WaitForSingleObject(_timerHandle, Kernel32.INFINITE) == Kernel32.WAIT_FAILED)
             {
                 throw new Win32Exception(Marshal.GetLastPInvokeError(), "WaitForSingleObject failed.");
             }

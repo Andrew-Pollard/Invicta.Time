@@ -5,7 +5,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <AnalysisLevel>10.0-all</AnalysisLevel>
+    <!--
+      CA1416: the provider is Windows-only.
+      CA2007: a console app has no synchronization context to avoid, so ConfigureAwait adds nothing.
+    -->
+    <NoWarn>$(NoWarn);CA1416;CA2007</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

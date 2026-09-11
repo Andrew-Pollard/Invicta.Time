@@ -21,6 +21,7 @@ internal static unsafe partial class Kernel32
 
     // lpTimerAttributes is only ever null here, so SECURITY_ATTRIBUTES isn't declared.
     [LibraryImport(nameof(Kernel32), SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial SafeWaitHandle CreateWaitableTimerExW(
         void* lpTimerAttributes,
         string? lpTimerName,
@@ -29,6 +30,7 @@ internal static unsafe partial class Kernel32
 
     // A negative lpDueTime is a relative time in 100 ns units. BOOL is a 4-byte int that is zero on failure.
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial int SetWaitableTimer(
         SafeWaitHandle hTimer,
         in long lpDueTime,
@@ -38,5 +40,6 @@ internal static unsafe partial class Kernel32
         int fResume);
 
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial uint WaitForSingleObject(SafeWaitHandle hHandle, uint dwMilliseconds);
 }

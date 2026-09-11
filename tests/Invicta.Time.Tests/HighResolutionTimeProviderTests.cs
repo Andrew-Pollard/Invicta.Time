@@ -9,7 +9,7 @@ using NUnit.Framework;
 
 namespace Invicta;
 
-public class HighResolutionTimeProviderTests
+internal sealed class HighResolutionTimeProviderTests
 {
     private static readonly TimeProvider s_provider = HighResolutionTimeProvider.Instance;
 

@@ -53,7 +53,7 @@ internal sealed class HighResolutionTimer : ITimer
 
 /// <summary>
 /// A scheduled timer. Scheduling state is guarded by the <see cref="TimerScheduler"/> lock; lifetime state by
-/// <c>this</c>.
+/// the entry's own lock.
 /// </summary>
 [SupportedOSPlatform("windows10.0.17134")]
 internal sealed class TimerEntry(TimerCallback callback, object? state, ExecutionContext? executionContext)
@@ -68,7 +68,9 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     private readonly object? _state = state;
     private readonly ExecutionContext? _executionContext = executionContext;
 
-    // Guarded by lock(this).
+    private readonly Lock _lock = new();
+
+    // Guarded by _lock.
     private bool _closed;
     private int _callbacksRunning;
     private TaskCompletionSource? _closeCompletion;
@@ -103,7 +105,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
 
     public bool Change(long dueTicks, long periodTicks)
     {
-        lock (this)
+        lock (_lock)
         {
             if (_closed)
             {
@@ -117,7 +119,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
 
     public void Close()
     {
-        lock (this)
+        lock (_lock)
         {
             CloseCore();
         }
@@ -125,7 +127,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
 
     public ValueTask CloseAsync()
     {
-        lock (this)
+        lock (_lock)
         {
             CloseCore();
             if (_callbacksRunning == 0)
@@ -149,7 +151,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
 
     void IThreadPoolWorkItem.Execute()
     {
-        lock (this)
+        lock (_lock)
         {
             // A callback queued just before Close() is skipped rather than run after disposal.
             if (_closed)
@@ -173,7 +175,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
         }
         finally
         {
-            lock (this)
+            lock (_lock)
             {
                 if (--_callbacksRunning == 0 && _closed)
                 {

@@ -4,7 +4,7 @@ using NUnit.Framework;
 
 namespace Invicta.Threading;
 
-public class TimerHeapTests
+internal sealed class TimerHeapTests
 {
     [Test]
     public void RandomInsertsAndRemovals_PopInDueOrder()

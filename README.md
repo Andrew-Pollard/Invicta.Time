@@ -12,7 +12,7 @@ using var tick = new PeriodicTimer(TimeSpan.FromMilliseconds(1), clock);
 using ITimer t = clock.CreateTimer(_ => DoWork(), null, TimeSpan.FromMilliseconds(0.5), TimeSpan.FromMilliseconds(1));
 ```
 
-Requires Windows 10 1803+ and .NET 8+. Check `HighResolutionTimeProvider.IsSupported`.
+Requires Windows 10 1803+ and .NET 10. Check `HighResolutionTimeProvider.IsSupported`.
 
 ## What changes vs `TimeProvider.System`
 

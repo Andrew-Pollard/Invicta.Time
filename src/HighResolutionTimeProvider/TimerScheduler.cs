@@ -23,11 +23,7 @@ internal sealed class TimerScheduler
 {
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
 
-#if NET9_0_OR_GREATER
     private readonly Lock _lock = new();
-#else
-    private readonly object _lock = new();
-#endif
     private readonly TimerHeap _heap = new();
     private readonly SafeWaitHandle _timerHandle;
 

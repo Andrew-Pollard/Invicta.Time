@@ -2,7 +2,7 @@
 
 using System.Runtime.Versioning;
 
-namespace HighResolutionTime;
+namespace Invicta;
 
 /// <summary>
 /// Extension members that expose <see cref="HighResolutionTimeProvider"/> on <see cref="TimeProvider"/>.

@@ -7,7 +7,7 @@ using Xunit;
 // Latency assertions are unreliable when tests compete for the thread pool.
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
-namespace HighResolutionTime.Tests;
+namespace Invicta;
 
 public class HighResolutionTimeProviderTests
 {

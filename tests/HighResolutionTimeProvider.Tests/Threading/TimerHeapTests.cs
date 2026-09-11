@@ -2,7 +2,7 @@
 
 using Xunit;
 
-namespace HighResolutionTime.Tests;
+namespace Invicta.Threading;
 
 public class TimerHeapTests
 {

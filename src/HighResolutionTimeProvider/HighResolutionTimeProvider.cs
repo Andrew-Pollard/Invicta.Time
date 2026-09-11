@@ -1,8 +1,9 @@
 // © 2026 Andrew Pollard. All rights reserved.
 
 using System.Runtime.Versioning;
+using Invicta.Threading;
 
-namespace HighResolutionTime;
+namespace Invicta;
 
 /// <summary>
 /// A <see cref="TimeProvider"/> whose timers are driven by a Windows high-resolution waitable timer

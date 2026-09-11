@@ -2,7 +2,7 @@
 
 using System.Runtime.Versioning;
 
-namespace HighResolutionTime;
+namespace Invicta.Threading;
 
 /// <summary>
 /// A binary min-heap of <see cref="TimerEntry"/> ordered by <see cref="TimerEntry.DueTimestamp"/>. Each entry

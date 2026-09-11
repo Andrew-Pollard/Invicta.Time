@@ -4,7 +4,7 @@ A `System.TimeProvider` whose timers use Windows high-resolution waitable timers
 (`CreateWaitableTimerExW` + `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`) instead of the ~15.6 ms system clock tick.
 
 ```csharp
-using HighResolutionTime;
+using Invicta;
 
 TimeProvider clock = TimeProvider.HighResolution; // C# 14 extension property, alongside TimeProvider.System
 

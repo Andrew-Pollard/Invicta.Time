@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Microsoft.Win32.SafeHandles;
 
-namespace HighResolutionTime;
+namespace Invicta.Threading;
 
 /// <summary>
 /// Owns one high-resolution waitable timer and one background thread. Pending timers live in a min-heap keyed

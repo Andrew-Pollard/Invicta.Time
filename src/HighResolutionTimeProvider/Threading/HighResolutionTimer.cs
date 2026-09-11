@@ -3,7 +3,7 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
 
-namespace HighResolutionTime;
+namespace Invicta.Threading;
 
 /// <summary>
 /// The <see cref="ITimer"/> handed to callers. The scheduler only holds <see cref="TimerEntry"/>, so if the

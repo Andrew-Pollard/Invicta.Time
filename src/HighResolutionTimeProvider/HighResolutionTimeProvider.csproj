@@ -8,7 +8,7 @@
     <IsTrimmable>true</IsTrimmable>
     <IsAotCompatible>true</IsAotCompatible>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RootNamespace>HighResolutionTime</RootNamespace>
+    <RootNamespace>Invicta</RootNamespace>
     <PackageId>HighResolutionTimeProvider</PackageId>
     <Description>A System.TimeProvider whose timers use Windows high-resolution waitable timers (CREATE_WAITABLE_TIMER_HIGH_RESOLUTION) instead of the ~15.6 ms system clock tick.</Description>
   </PropertyGroup>

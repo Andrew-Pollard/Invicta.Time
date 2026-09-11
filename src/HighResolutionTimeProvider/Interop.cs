@@ -3,7 +3,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-namespace HighResolutionTime;
+namespace Invicta;
 
 internal static partial class Interop
 {

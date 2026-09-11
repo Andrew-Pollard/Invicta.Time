@@ -1,7 +1,7 @@
 // © 2026 Andrew Pollard. All rights reserved.
 
 using System.Diagnostics;
-using HighResolutionTime;
+using Invicta;
 
 // Compares how long Task.Delay(1 ms) and a 1 ms PeriodicTimer actually take with each provider.
 

@@ -20,16 +20,24 @@ reports whether the current OS qualifies.
 
 ## Resolution
 
-Medians from `benchmarks/Invicta.Time.Benchmarks`, on an AMD Ryzen 7 9800X3D running Windows 11 25H2:
+Medians from `benchmarks/Invicta.Time.Benchmarks` with the displays asleep, on an AMD Ryzen 7 9800X3D running
+Windows 11 25H2:
 
 | | `TimeProvider.System` | `HighResolutionTimeProvider` |
 |---|---|---|
-| `Task.Delay(1 ms)` | 15.63 ms | 1.38 ms |
-| `PeriodicTimer(1 ms)` tick | 15.66 ms | 1.00 ms |
-| One-shot `ITimer` callback at 1 ms | 15.65 ms | 1.39 ms |
+| `Task.Delay(1 ms)` | 16.14 ms | 1.54 ms |
+| `PeriodicTimer(1 ms)` tick | 16.13 ms | 1.00 ms |
+| One-shot `ITimer` callback at 1 ms | 16.15 ms | 1.54 ms |
+| Periodic `ITimer` callback every 1 ms | 16.13 ms | 1.00 ms |
 
-The spread either side of those medians is narrow: the 95th percentile is within 0.12 ms of the median in every
-case, so the system provider is reliably a tick late rather than occasionally so.
+The 95th percentile is within 0.05 ms of the median in every case.
+
+- **One-shots:** a high-resolution timer expires on roughly the next half-millisecond step after its due time. Each
+  benchmark iteration arms its timer the moment the previous wait ends, which is the worst case, so a 1 ms delay
+  takes 1.54 ms.
+- **Periodic timers:** each tick is just as late, but due times are fixed rather than counted from the previous
+  tick, so the average period stays at 1.00 ms.
+- **The system provider:** back-to-back 1 ms waits take about 16.1 ms each, not the 15.6 ms of a clock tick.
 
 Only `CreateTimer` differs from `TimeProvider.System`. `GetUtcNow` and `GetTimestamp` are already high
 resolution, so they are inherited unchanged.
@@ -49,11 +57,12 @@ is no longer referenced is collected and stops.
 
 ## Caveats
 
-- **Late, never early:** a one-shot fires roughly 0.4 ms after its due time, and under 1 ms even in the tail,
-  which is kernel granularity plus the thread pool hop.
-- **The comparison moves:** the `TimeProvider.System` column depends on the machine-wide timer resolution,
-  which any process can raise with `timeBeginPeriod`. While something has raised it, the gap narrows; the
-  figures above were taken with the tick at its 15.6 ms default.
+- **Late, never early:** a timer fires up to about 0.5 ms after its due time, depending on when it was armed,
+  plus the thread pool hop.
+- **Screen activity:** while the screen is updating, `TimeProvider.System` timers can fire on the display's frame
+  boundaries instead of the tick, so its figures fall with the refresh rate: to about 12 ms on average at 60 Hz,
+  8.4 ms at 120 Hz and 5.6 ms at 180 Hz. `HighResolutionTimeProvider` is unaffected. The measurements are in
+  [Invicta.TimerInvestigation][timerinvestigation].
 - **Thread pool pressure:** a starved pool delays callbacks, exactly as it does for the built-in timers.
 - **Unaffected APIs:** `Thread.Sleep`, and `Task.Delay(TimeSpan)` without a provider, keep the system tick.
 
@@ -62,3 +71,4 @@ is no longer referenced is collected and stops.
 [bearcats]: https://blog.bearcats.nl/perfect-sleep-function
 [siliceum]: https://siliceum.com/en/blog/post/windows-high-resolution-timers
 [randomascii]: https://randomascii.wordpress.com/2020/10/04/windows-timer-resolution-the-great-rule-change
+[timerinvestigation]: https://github.com/Andrew-Pollard/Invicta.TimerInvestigation

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>10.0-all</AnalysisLevel>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Invicta</RootNamespace>
+    <!--
+      CA1001: BenchmarkDotNet owns the lifecycle; the timer is disposed from [GlobalCleanup], and the class
+              cannot implement IDisposable cleanly because BenchmarkDotNet requires it to stay unsealed.
+      CA1416: the provider is Windows-only; these benchmarks only run there.
+      CA1515: BenchmarkDotNet discovers public types only.
+      CA2007: a console app has no synchronization context to avoid, so ConfigureAwait adds nothing.
+    -->
+    <NoWarn>$(NoWarn);CA1001;CA1416;CA1515;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Invicta.Time\Invicta.Time.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+
+</Project>

@@ -20,14 +20,16 @@ reports whether the current OS qualifies.
 
 ## Resolution
 
-Measured by `samples/LatencyComparison`:
+Medians from `benchmarks/Invicta.Time.Benchmarks`, on an AMD Ryzen 7 9800X3D running Windows 11 25H2:
 
 | | `TimeProvider.System` | `HighResolutionTimeProvider` |
 |---|---|---|
-| `Task.Delay(1 ms)`, median | 10.8 ms | 1.53 ms |
-| `Task.Delay(1 ms)`, 99th percentile | 17.4 ms | 1.88 ms |
-| `PeriodicTimer(1 ms)` interval, median | 11.1 ms | 1.02 ms |
-| `PeriodicTimer(1 ms)` interval, 99th percentile | 21.4 ms | 1.32 ms |
+| `Task.Delay(1 ms)` | 15.63 ms | 1.38 ms |
+| `PeriodicTimer(1 ms)` tick | 15.66 ms | 1.00 ms |
+| One-shot `ITimer` callback at 1 ms | 15.65 ms | 1.39 ms |
+
+The spread either side of those medians is narrow: the 95th percentile is within 0.12 ms of the median in every
+case, so the system provider is reliably a tick late rather than occasionally so.
 
 Only `CreateTimer` differs from `TimeProvider.System`. `GetUtcNow` and `GetTimestamp` are already high
 resolution, so they are inherited unchanged.
@@ -47,8 +49,11 @@ is no longer referenced is collected and stops.
 
 ## Caveats
 
-- **Late, never early:** a one-shot typically fires 0.3–0.9 ms after its due time, which is kernel granularity
-  plus the thread pool hop.
+- **Late, never early:** a one-shot fires roughly 0.4 ms after its due time, and under 1 ms even in the tail,
+  which is kernel granularity plus the thread pool hop.
+- **The comparison moves:** the `TimeProvider.System` column depends on the machine-wide timer resolution,
+  which any process can raise with `timeBeginPeriod`. While something has raised it, the gap narrows; the
+  figures above were taken with the tick at its 15.6 ms default.
 - **Thread pool pressure:** a starved pool delays callbacks, exactly as it does for the built-in timers.
 - **Unaffected APIs:** `Thread.Sleep`, and `Task.Delay(TimeSpan)` without a provider, keep the system tick.
 

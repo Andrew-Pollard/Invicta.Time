@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Invicta.Time.Benchmarks/Invicta.Time.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/LatencyComparison/LatencyComparison.csproj" />
   </Folder>

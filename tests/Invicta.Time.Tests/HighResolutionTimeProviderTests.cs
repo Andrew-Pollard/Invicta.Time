@@ -145,10 +145,10 @@ internal sealed class HighResolutionTimeProviderTests
     {
         long start = Stopwatch.GetTimestamp();
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2), s_provider);
-        var cancelled = new TaskCompletionSource<TimeSpan>();
-        cts.Token.Register(() => cancelled.TrySetResult(Stopwatch.GetElapsedTime(start)));
+        var canceled = new TaskCompletionSource<TimeSpan>();
+        cts.Token.Register(() => canceled.TrySetResult(Stopwatch.GetElapsedTime(start)));
 
-        TimeSpan elapsed = await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        TimeSpan elapsed = await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.That(elapsed, Is.LessThan(TimeSpan.FromMilliseconds(10)));
     }
 

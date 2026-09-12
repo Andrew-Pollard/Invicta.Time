@@ -7,7 +7,7 @@ using NUnit.Framework;
 namespace Invicta;
 
 /// <summary>
-/// Behaviour that every <see cref="TimeProvider"/> shares, run against both <see cref="TimeProvider.System"/> and
+/// Behavior that every <see cref="TimeProvider"/> shares, run against both <see cref="TimeProvider.System"/> and
 /// <see cref="HighResolutionTimeProvider.Instance"/> so the two cannot drift apart. Ported from the .NET runtime's
 /// own TimeProvider and System.Threading.Timer tests.
 /// </summary>
@@ -548,10 +548,10 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     public async Task CancellationTokenSource_WithDelay_Cancels()
     {
         using var cts = new CancellationTokenSource(s_due, _provider);
-        var cancelled = new TaskCompletionSource();
-        using CancellationTokenRegistration registration = cts.Token.Register(() => cancelled.TrySetResult());
+        var canceled = new TaskCompletionSource();
+        using CancellationTokenRegistration registration = cts.Token.Register(() => canceled.TrySetResult());
 
-        await cancelled.Task.WaitAsync(s_timeout);
+        await canceled.Task.WaitAsync(s_timeout);
         Assert.That(cts.IsCancellationRequested, Is.True);
     }
 
@@ -574,7 +574,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task TaskDelay_WithProvider_CanBeCancelled()
+    public async Task TaskDelay_WithProvider_CanBeCanceled()
     {
         using var cts = new CancellationTokenSource();
         Task delay = Task.Delay(TimeSpan.FromMinutes(1), _provider, cts.Token);

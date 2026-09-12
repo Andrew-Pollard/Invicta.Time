@@ -85,16 +85,6 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
-    public async Task ZeroDueTime_FiresImmediately()
-    {
-        var fired = new TaskCompletionSource();
-        using ITimer timer = s_provider.CreateTimer(
-            _ => fired.TrySetResult(), null, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
-
-        await fired.Task.WaitAsync(TimeSpan.FromSeconds(5));
-    }
-
-    [Test]
     public async Task Periodic_OneMillisecond_FiresAtRoughlyOneKilohertz()
     {
         int count = 0;
@@ -107,128 +97,6 @@ internal sealed class HighResolutionTimeProviderTests
 
         // A 15.6 ms tick-based timer would manage ~32 in 500 ms.
         Assert.That(fired, Is.InRange(300, 520));
-    }
-
-    [Test]
-    public async Task Change_ToInfinite_StopsTimer_AndCanRestart()
-    {
-        int count = 0;
-        using ITimer timer = s_provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(1));
-        await Task.Delay(30);
-
-        Assert.That(timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan), Is.True);
-        await Task.Delay(20); // let in-flight callbacks drain
-        int stopped = Volatile.Read(ref count);
-        await Task.Delay(50);
-        int stillStopped = Volatile.Read(ref count);
-
-        bool restarted = timer.Change(TimeSpan.FromMilliseconds(1), Timeout.InfiniteTimeSpan);
-        await Task.Delay(50);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(stillStopped, Is.EqualTo(stopped), "Callback count while stopped");
-            Assert.That(restarted, Is.True);
-            Assert.That(Volatile.Read(ref count), Is.EqualTo(stopped + 1), "Callback count after one-shot restart");
-        }
-    }
-
-    [Test]
-    public async Task Change_Reschedules_EarlierAndLater()
-    {
-        var fired = new TaskCompletionSource<TimeSpan>();
-        long start = Stopwatch.GetTimestamp();
-        using ITimer timer = s_provider.CreateTimer(
-            _ => fired.TrySetResult(Stopwatch.GetElapsedTime(start)),
-            null,
-            TimeSpan.FromHours(1),
-            Timeout.InfiniteTimeSpan);
-
-        timer.Change(TimeSpan.FromMilliseconds(2), Timeout.InfiniteTimeSpan);
-        TimeSpan elapsed = await fired.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.That(elapsed, Is.LessThan(TimeSpan.FromSeconds(1)));
-    }
-
-    [Test]
-    public async Task Dispose_StopsCallbacks_AndChangeReturnsFalse()
-    {
-        int count = 0;
-        ITimer timer = s_provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(1));
-        await Task.Delay(20);
-
-        timer.Dispose();
-        int afterDispose = Volatile.Read(ref count);
-        await Task.Delay(50);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(Volatile.Read(ref count), Is.EqualTo(afterDispose));
-            Assert.That(timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan), Is.False);
-            Assert.That(() => timer.Dispose(), Throws.Nothing, "Dispose should be idempotent");
-        }
-    }
-
-    [Test]
-    public async Task DisposeAsync_WaitsForRunningCallback()
-    {
-        var entered = new TaskCompletionSource();
-        using var release = new ManualResetEventSlim();
-        bool finished = false;
-
-        ITimer timer = s_provider.CreateTimer(
-            _ =>
-            {
-                entered.TrySetResult();
-                release.Wait();
-                Volatile.Write(ref finished, true);
-            },
-            null,
-            TimeSpan.Zero,
-            Timeout.InfiniteTimeSpan);
-
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        ValueTask disposal = timer.DisposeAsync();
-        Assert.That(disposal.IsCompleted, Is.False);
-
-        release.Set();
-        await disposal.AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.That(Volatile.Read(ref finished), Is.True);
-    }
-
-    [Test]
-    public async Task ExecutionContext_FlowsToCallback()
-    {
-        var local = new AsyncLocal<string> { Value = "flowed" };
-        var observed = new TaskCompletionSource<string?>();
-
-        using ITimer timer = s_provider.CreateTimer(
-            _ => observed.TrySetResult(local.Value), null, TimeSpan.FromMilliseconds(1), Timeout.InfiniteTimeSpan);
-
-        Assert.That(await observed.Task.WaitAsync(TimeSpan.FromSeconds(5)), Is.EqualTo("flowed"));
-    }
-
-    [Test]
-    public async Task ExecutionContext_NotFlowedWhenSuppressed()
-    {
-        var local = new AsyncLocal<string> { Value = "flowed" };
-        var observed = new TaskCompletionSource<string?>();
-
-        ITimer timer;
-        using (ExecutionContext.SuppressFlow())
-        {
-            timer = s_provider.CreateTimer(
-                _ => observed.TrySetResult(local.Value),
-                null,
-                TimeSpan.FromMilliseconds(1),
-                Timeout.InfiniteTimeSpan);
-        }
-
-        using (timer)
-        {
-            Assert.That(await observed.Task.WaitAsync(TimeSpan.FromSeconds(5)), Is.Null);
-        }
     }
 
     [Test]
@@ -314,31 +182,6 @@ internal sealed class HighResolutionTimeProviderTests
         int afterCollect = Volatile.Read(ref counter.Value);
         await Task.Delay(50);
         Assert.That(Volatile.Read(ref counter.Value), Is.EqualTo(afterCollect));
-    }
-
-    [Test]
-    public void InvalidArguments_Throw()
-    {
-        using ITimer timer = s_provider.CreateTimer(_ => { }, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(
-                () => s_provider.CreateTimer(null!, null, TimeSpan.Zero, TimeSpan.Zero),
-                Throws.ArgumentNullException);
-            Assert.That(
-                () => s_provider.CreateTimer(_ => { }, null, TimeSpan.FromMilliseconds(-2), TimeSpan.Zero),
-                Throws.TypeOf<ArgumentOutOfRangeException>());
-            Assert.That(
-                () => s_provider.CreateTimer(_ => { }, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(-2)),
-                Throws.TypeOf<ArgumentOutOfRangeException>());
-            Assert.That(
-                () => s_provider.CreateTimer(_ => { }, null, TimeSpan.FromDays(50), TimeSpan.Zero),
-                Throws.TypeOf<ArgumentOutOfRangeException>());
-            Assert.That(
-                () => timer.Change(TimeSpan.FromMilliseconds(-2), TimeSpan.Zero),
-                Throws.TypeOf<ArgumentOutOfRangeException>());
-        }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

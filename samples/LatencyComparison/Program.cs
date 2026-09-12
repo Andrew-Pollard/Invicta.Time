@@ -1,51 +1,81 @@
 // © 2026 Andrew Pollard. All rights reserved.
 
 using System.Diagnostics;
+using System.Globalization;
 using Invicta;
 
-// Compares how long Task.Delay(1 ms) and a 1 ms PeriodicTimer actually take with each provider.
+// Writes per-sample timer latencies to CSV, for the distribution behind the numbers rather than the numbers
+// themselves: benchmarks/Invicta.Time.Benchmarks reports the aggregates, but its iteration averages hide the
+// behavior of individual calls.
+//
+// Usage: LatencyComparison [samples] [interval in ms] [output path]
 
-const int Samples = 200;
+int sampleCount = args.Length > 0 ? int.Parse(args[0], CultureInfo.InvariantCulture) : 500;
+double intervalMs = args.Length > 1 ? double.Parse(args[1], CultureInfo.InvariantCulture) : 1;
+string path = args.Length > 2 ? args[2] : "latency.csv";
+TimeSpan interval = TimeSpan.FromMilliseconds(intervalMs);
 
-await Measure("TimeProvider.System", TimeProvider.System);
-await Measure("HighResolutionTimeProvider.Instance", HighResolutionTimeProvider.Instance);
+(string Name, TimeProvider Provider)[] clocks =
+[
+    ("System", TimeProvider.System),
+    ("HighResolution", HighResolutionTimeProvider.Instance),
+];
 
-static async Task Measure(string name, TimeProvider provider)
+await using StreamWriter writer = new(path);
+await writer.WriteLineAsync("provider,scenario,sample,milliseconds");
+
+foreach ((string name, TimeProvider provider) in clocks)
 {
-    Console.WriteLine(name);
+    await WriteSamples(writer, name, "Task.Delay", await MeasureDelays(provider, interval, sampleCount));
+    await WriteSamples(writer, name, "PeriodicTimer", await MeasureTicks(provider, interval, sampleCount));
+}
 
-    await Task.Delay(TimeSpan.FromMilliseconds(1), provider); // warm-up
-    double[] delays = new double[Samples];
-    for (int i = 0; i < Samples; i++)
+Console.WriteLine($"Wrote {sampleCount * clocks.Length * 2} samples to {Path.GetFullPath(path)}");
+
+/// <summary>Measures how long each <see cref="Task.Delay(TimeSpan, TimeProvider)"/> actually takes.</summary>
+/// <returns>One elapsed time in milliseconds per sample.</returns>
+static async Task<double[]> MeasureDelays(TimeProvider provider, TimeSpan interval, int count)
+{
+    double[] samples = new double[count];
+    await Task.Delay(interval, provider); // warm up the provider and JIT the path
+
+    for (int i = 0; i < count; i++)
     {
         long start = Stopwatch.GetTimestamp();
-        await Task.Delay(TimeSpan.FromMilliseconds(1), provider);
-        delays[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        await Task.Delay(interval, provider);
+        samples[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
     }
 
-    Print("  Task.Delay(1 ms)        ", delays);
+    return samples;
+}
 
-    using PeriodicTimer periodic = new(TimeSpan.FromMilliseconds(1), provider);
-    double[] intervals = new double[Samples];
-    await periodic.WaitForNextTickAsync();
+/// <summary>Measures the gap between consecutive <see cref="PeriodicTimer"/> ticks.</summary>
+/// <returns>One interval in milliseconds per sample.</returns>
+static async Task<double[]> MeasureTicks(TimeProvider provider, TimeSpan interval, int count)
+{
+    double[] samples = new double[count];
+    using PeriodicTimer timer = new(interval, provider);
+
+    await timer.WaitForNextTickAsync();
     long last = Stopwatch.GetTimestamp();
-    for (int i = 0; i < Samples; i++)
+
+    for (int i = 0; i < count; i++)
     {
-        await periodic.WaitForNextTickAsync();
+        await timer.WaitForNextTickAsync();
         long now = Stopwatch.GetTimestamp();
-        intervals[i] = Stopwatch.GetElapsedTime(last, now).TotalMilliseconds;
+        samples[i] = Stopwatch.GetElapsedTime(last, now).TotalMilliseconds;
         last = now;
     }
 
-    Print("  PeriodicTimer(1 ms) tick", intervals);
-    Console.WriteLine();
+    return samples;
 }
 
-static void Print(string label, double[] values)
+/// <summary>Writes one CSV row per sample.</summary>
+static async Task WriteSamples(StreamWriter writer, string provider, string scenario, double[] samples)
 {
-    Array.Sort(values);
-    Console.WriteLine(
-        $"{label}  min {values[0],7:F3}  p50 {values[values.Length / 2],7:F3}  " +
-        $"p99 {values[(int)(values.Length * 0.99)],7:F3}  max {values[values.Length - 1],7:F3}  " +
-        $"mean {values.Average(),7:F3}  (ms)");
+    for (int i = 0; i < samples.Length; i++)
+    {
+        await writer.WriteLineAsync(
+            string.Create(CultureInfo.InvariantCulture, $"{provider},{scenario},{i},{samples[i]:F4}"));
+    }
 }

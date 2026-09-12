@@ -2,7 +2,6 @@
 
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
-using unsafe PTIMERAPCROUTINE = delegate* unmanaged<void*, uint, uint, void>;
 
 namespace Invicta;
 
@@ -11,7 +10,7 @@ namespace Invicta;
 #pragma warning disable IDE1006 // Naming Styles
 
 /// <summary>P/Invoke declarations for kernel32.dll.</summary>
-internal static unsafe partial class Kernel32
+internal static partial class Kernel32
 {
     internal const uint CREATE_WAITABLE_TIMER_HIGH_RESOLUTION = 0x00000002;
     internal const uint TIMER_MODIFY_STATE = 0x0002;
@@ -21,7 +20,7 @@ internal static unsafe partial class Kernel32
 
     /// <summary>Creates or opens a waitable timer object.</summary>
     /// <param name="lpTimerAttributes">
-    /// An optional <c>SECURITY_ATTRIBUTES</c> pointer, always null here, so that structure is not declared.
+    /// An optional <c>SECURITY_ATTRIBUTES</c> pointer, always zero here, so that structure is not declared.
     /// </param>
     /// <param name="lpTimerName">A name for the timer, or null for an unnamed one.</param>
     /// <param name="dwFlags">
@@ -32,7 +31,7 @@ internal static unsafe partial class Kernel32
     [LibraryImport(nameof(Kernel32), SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial SafeWaitHandle CreateWaitableTimerExW(
-        void* lpTimerAttributes,
+        nint lpTimerAttributes,
         string? lpTimerName,
         uint dwFlags,
         uint dwDesiredAccess);
@@ -44,8 +43,10 @@ internal static unsafe partial class Kernel32
     /// are an absolute file time.
     /// </param>
     /// <param name="lPeriod">The period in milliseconds, or zero for a timer that signals once.</param>
-    /// <param name="pfnCompletionRoutine">An optional APC to queue when the timer signals, null here.</param>
-    /// <param name="lpArgToCompletionRoutine">The argument passed to that APC, null here.</param>
+    /// <param name="pfnCompletionRoutine">
+    /// An optional <c>PTIMERAPCROUTINE</c> to queue as an APC when the timer signals, always zero here.
+    /// </param>
+    /// <param name="lpArgToCompletionRoutine">The argument passed to that APC, always zero here.</param>
     /// <param name="fResume">Nonzero to wake a suspended system when the timer signals, zero here.</param>
     /// <returns>A Win32 <c>BOOL</c>, which is a 4-byte int that is zero on failure.</returns>
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
@@ -54,8 +55,8 @@ internal static unsafe partial class Kernel32
         SafeWaitHandle hTimer,
         in long lpDueTime,
         int lPeriod,
-        PTIMERAPCROUTINE pfnCompletionRoutine,
-        void* lpArgToCompletionRoutine,
+        nint pfnCompletionRoutine,
+        nint lpArgToCompletionRoutine,
         int fResume);
 
     /// <summary>Waits until the object is signaled or the timeout elapses.</summary>

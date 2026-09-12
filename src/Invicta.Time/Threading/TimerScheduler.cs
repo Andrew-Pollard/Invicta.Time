@@ -30,10 +30,10 @@ internal sealed class TimerScheduler
     // Stopwatch timestamp the kernel timer is armed for, or long.MaxValue if unarmed. Guarded by _lock.
     private long _armedDue = long.MaxValue;
 
-    private unsafe TimerScheduler()
+    private TimerScheduler()
     {
         _timerHandle = Kernel32.CreateWaitableTimerExW(
-            lpTimerAttributes: null,
+            lpTimerAttributes: nint.Zero,
             lpTimerName: null,
             Kernel32.CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
             Kernel32.TIMER_MODIFY_STATE | Kernel32.SYNCHRONIZE);
@@ -85,7 +85,7 @@ internal sealed class TimerScheduler
         }
     }
 
-    private unsafe void Arm(long dueTimestamp, long now)
+    private void Arm(long dueTimestamp, long now)
     {
         // Relative due times are negative, in 100 ns units. Round up so we never wake before the due time
         // (if the kernel still wakes us slightly early, the loop just re-arms for the remainder).
@@ -95,7 +95,7 @@ internal sealed class TimerScheduler
             : (long)(((Int128)delta * TimeSpan.TicksPerSecond + Stopwatch.Frequency - 1) / Stopwatch.Frequency);
         long relative = -Math.Max(hundredNs, 1);
 
-        if (Kernel32.SetWaitableTimer(_timerHandle, in relative, 0, null, null, fResume: 0) == 0)
+        if (Kernel32.SetWaitableTimer(_timerHandle, in relative, 0, nint.Zero, nint.Zero, fResume: 0) == 0)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
         }

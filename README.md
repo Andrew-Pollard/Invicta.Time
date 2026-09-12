@@ -39,7 +39,7 @@ are already high resolution, so they're inherited unchanged.
 - Callbacks are queued to the thread pool, as with `System.Threading.Timer`.
 - Periodic timers keep a drift-free cadence and skip missed ticks rather than bursting.
 
-Behavior matches `TimeProvider.System`: `ExecutionContext` flows unless suppressed, callbacks can overlap,
+Behaviour matches `TimeProvider.System`: `ExecutionContext` flows unless suppressed, callbacks can overlap,
 `Change` returns `false` after disposal, `DisposeAsync` waits for running callbacks, and a timer that is no longer
 referenced gets garbage collected and stops.
 

@@ -61,7 +61,7 @@ internal sealed class HighResolutionTimeProviderTests
     public async Task OneShot_FiresOnceAndNeverBeforeDueTime()
     {
         int count = 0;
-        var fired = new TaskCompletionSource<TimeSpan>();
+        TaskCompletionSource<TimeSpan> fired = new();
         long start = Stopwatch.GetTimestamp();
 
         using ITimer timer = s_provider.CreateTimer(
@@ -103,11 +103,11 @@ internal sealed class HighResolutionTimeProviderTests
     public async Task ManyTimers_EachFiresOnceAndNotEarly()
     {
         const int TimerCount = 500;
-        var random = new Random(42);
+        Random random = new(42);
         int early = 0;
         int remaining = TimerCount;
-        var done = new TaskCompletionSource();
-        var timers = new ITimer[TimerCount];
+        TaskCompletionSource done = new();
+        ITimer[] timers = new ITimer[TimerCount];
 
         for (int i = 0; i < TimerCount; i++)
         {
@@ -144,8 +144,8 @@ internal sealed class HighResolutionTimeProviderTests
     public async Task CancellationTokenSource_WithProvider_CancelsOnTime()
     {
         long start = Stopwatch.GetTimestamp();
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2), s_provider);
-        var canceled = new TaskCompletionSource<TimeSpan>();
+        using CancellationTokenSource cts = new(TimeSpan.FromMilliseconds(2), s_provider);
+        TaskCompletionSource<TimeSpan> canceled = new();
         cts.Token.Register(() => canceled.TrySetResult(Stopwatch.GetElapsedTime(start)));
 
         TimeSpan elapsed = await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -155,7 +155,7 @@ internal sealed class HighResolutionTimeProviderTests
     [Test]
     public async Task PeriodicTimer_WithProvider_Ticks()
     {
-        using var periodic = new PeriodicTimer(TimeSpan.FromMilliseconds(1), s_provider);
+        using PeriodicTimer periodic = new(TimeSpan.FromMilliseconds(1), s_provider);
         long start = Stopwatch.GetTimestamp();
         for (int i = 0; i < 20; i++)
         {
@@ -168,7 +168,7 @@ internal sealed class HighResolutionTimeProviderTests
     [Test]
     public async Task UnreferencedTimer_IsCollectedAndStops()
     {
-        var counter = new StrongBox<int>();
+        StrongBox<int> counter = new();
         CreateAbandonedTimer(counter);
 
         await Task.Delay(20);

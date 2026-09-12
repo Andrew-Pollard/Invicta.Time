@@ -9,9 +9,9 @@ internal sealed class TimerHeapTests
     [Test]
     public void RandomInsertsAndRemovals_PopInDueOrder()
     {
-        var random = new Random(1234);
-        var heap = new TimerHeap();
-        var live = new List<TimerEntry>();
+        Random random = new(1234);
+        TimerHeap heap = new();
+        List<TimerEntry> live = [];
 
         for (int i = 0; i < 5000; i++)
         {
@@ -24,7 +24,7 @@ internal sealed class TimerHeapTests
             }
             else
             {
-                var entry = new TimerEntry(_ => { }, null, null) { DueTimestamp = random.Next(1000) };
+                TimerEntry entry = new(_ => { }, null, null) { DueTimestamp = random.Next(1000) };
                 heap.Insert(entry);
                 live.Add(entry);
             }
@@ -46,7 +46,7 @@ internal sealed class TimerHeapTests
     [Test]
     public void Remove_NotInHeap_IsNoOp()
     {
-        var heap = new TimerHeap();
+        TimerHeap heap = new();
         heap.Remove(new TimerEntry(_ => { }, null, null));
         Assert.That(heap.Count, Is.Zero);
     }

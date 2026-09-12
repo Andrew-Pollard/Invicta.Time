@@ -27,7 +27,7 @@ internal sealed class HighResolutionTimer : ITimer
         long per = TimerEntry.ToStopwatchTicks(period, nameof(period));
         _ = TimerScheduler.Instance;
 
-        var entry = new TimerEntry(callback, state, ExecutionContext.Capture());
+        TimerEntry entry = new(callback, state, ExecutionContext.Capture());
         entry.Change(due, per);
         return new HighResolutionTimer(entry);
     }

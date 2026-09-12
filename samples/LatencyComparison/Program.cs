@@ -25,7 +25,7 @@ static async Task Measure(string name, TimeProvider provider)
 
     Print("  Task.Delay(1 ms)        ", delays);
 
-    using var periodic = new PeriodicTimer(TimeSpan.FromMilliseconds(1), provider);
+    using PeriodicTimer periodic = new(TimeSpan.FromMilliseconds(1), provider);
     double[] intervals = new double[Samples];
     await periodic.WaitForNextTickAsync();
     long last = Stopwatch.GetTimestamp();

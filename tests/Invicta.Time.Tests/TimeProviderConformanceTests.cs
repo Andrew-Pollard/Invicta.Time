@@ -68,7 +68,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task Timer_FiresAfterDueTime()
     {
-        var fired = new TaskCompletionSource<TimeSpan>();
+        TaskCompletionSource<TimeSpan> fired = new();
         long start = Stopwatch.GetTimestamp();
 
         using ITimer timer = _provider.CreateTimer(
@@ -82,7 +82,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     public async Task Timer_PassesStateToCallback()
     {
         object state = new();
-        var observed = new TaskCompletionSource<object?>();
+        TaskCompletionSource<object?> observed = new();
 
         using ITimer timer = _provider.CreateTimer(
             s => observed.TrySetResult(s), state, s_due, Timeout.InfiniteTimeSpan);
@@ -93,7 +93,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task Timer_PassesNullStateToCallback()
     {
-        var observed = new TaskCompletionSource<object?>();
+        TaskCompletionSource<object?> observed = new();
 
         using ITimer timer = _provider.CreateTimer(
             s => observed.TrySetResult(s), null, s_due, Timeout.InfiniteTimeSpan);
@@ -137,7 +137,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task Timer_WithZeroDueTime_FiresImmediately()
     {
-        var fired = new TaskCompletionSource();
+        TaskCompletionSource fired = new();
         using ITimer timer = _provider.CreateTimer(
             _ => fired.TrySetResult(), null, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
 
@@ -186,7 +186,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task Timer_ChangeBeforeDueTime_Reschedules()
     {
-        var fired = new TaskCompletionSource<TimeSpan>();
+        TaskCompletionSource<TimeSpan> fired = new();
         long start = Stopwatch.GetTimestamp();
 
         using ITimer timer = _provider.CreateTimer(
@@ -204,8 +204,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     public async Task Timer_ChangePeriodFromInsideCallback_TakesEffect()
     {
         TimeSpan longPeriod = s_period * 4;
-        var self = new StrongBox<ITimer?>();
-        var thirdTick = new TaskCompletionSource<TimeSpan>();
+        StrongBox<ITimer?> self = new();
+        TaskCompletionSource<TimeSpan> thirdTick = new();
         int count = 0;
         long secondTick = 0;
 
@@ -239,8 +239,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task Timer_CanDisposeItselfInsideCallback()
     {
-        var self = new StrongBox<ITimer?>();
-        var fired = new TaskCompletionSource();
+        StrongBox<ITimer?> self = new();
+        TaskCompletionSource fired = new();
         int count = 0;
 
         ITimer timer = _provider.CreateTimer(
@@ -264,8 +264,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task Timer_AfterFiring_CanBeRestartedWithChange()
     {
-        var first = new TaskCompletionSource();
-        var second = new TaskCompletionSource();
+        TaskCompletionSource first = new();
+        TaskCompletionSource second = new();
         int count = 0;
 
         using ITimer timer = _provider.CreateTimer(
@@ -294,8 +294,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task Timer_BlockedCallback_DoesNotBlockOtherTimers()
     {
-        using var release = new ManualResetEventSlim();
-        var blocking = new TaskCompletionSource();
+        using ManualResetEventSlim release = new();
+        TaskCompletionSource blocking = new();
         int count = 0;
 
         using ITimer blocked = _provider.CreateTimer(
@@ -324,10 +324,10 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     public async Task ManyTimers_AllFire()
     {
         const int TimerCount = 100;
-        var random = new Random(42);
-        var done = new TaskCompletionSource();
+        Random random = new(42);
+        TaskCompletionSource done = new();
         int remaining = TimerCount;
-        var timers = new ITimer[TimerCount];
+        ITimer[] timers = new ITimer[TimerCount];
 
         for (int i = 0; i < TimerCount; i++)
         {
@@ -357,9 +357,9 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     {
         const int Threads = 8;
         const int PerThread = 10;
-        var done = new TaskCompletionSource();
+        TaskCompletionSource done = new();
         int remaining = Threads * PerThread;
-        var timers = new ITimer[Threads * PerThread];
+        ITimer[] timers = new ITimer[Threads * PerThread];
 
         Parallel.For(0, Threads, t =>
         {
@@ -419,8 +419,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task DisposeAsync_WaitsForRunningCallback()
     {
-        using var release = new ManualResetEventSlim();
-        var entered = new TaskCompletionSource();
+        using ManualResetEventSlim release = new();
+        TaskCompletionSource entered = new();
         bool finished = false;
 
         ITimer timer = _provider.CreateTimer(
@@ -516,8 +516,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task ExecutionContext_FlowsToCallback()
     {
-        var local = new AsyncLocal<string> { Value = "flowed" };
-        var observed = new TaskCompletionSource<string?>();
+        AsyncLocal<string> local = new() { Value = "flowed" };
+        TaskCompletionSource<string?> observed = new();
 
         using ITimer timer = _provider.CreateTimer(
             _ => observed.TrySetResult(local.Value), null, s_due, Timeout.InfiniteTimeSpan);
@@ -528,8 +528,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task ExecutionContext_NotFlowedWhenSuppressed()
     {
-        var local = new AsyncLocal<string> { Value = "flowed" };
-        var observed = new TaskCompletionSource<string?>();
+        AsyncLocal<string> local = new() { Value = "flowed" };
+        TaskCompletionSource<string?> observed = new();
 
         ITimer timer;
         using (ExecutionContext.SuppressFlow())
@@ -547,8 +547,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task CancellationTokenSource_WithDelay_Cancels()
     {
-        using var cts = new CancellationTokenSource(s_due, _provider);
-        var canceled = new TaskCompletionSource();
+        using CancellationTokenSource cts = new(s_due, _provider);
+        TaskCompletionSource canceled = new();
         using CancellationTokenRegistration registration = cts.Token.Register(() => canceled.TrySetResult());
 
         await canceled.Task.WaitAsync(s_timeout);
@@ -558,7 +558,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task CancellationTokenSource_WithInfiniteTimeout_DoesNotCancel()
     {
-        using var cts = new CancellationTokenSource(Timeout.InfiniteTimeSpan, _provider);
+        using CancellationTokenSource cts = new(Timeout.InfiniteTimeSpan, _provider);
 
         await Task.Delay(s_due * 4);
         Assert.That(cts.IsCancellationRequested, Is.False);
@@ -576,7 +576,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task TaskDelay_WithProvider_CanBeCanceled()
     {
-        using var cts = new CancellationTokenSource();
+        using CancellationTokenSource cts = new();
         Task delay = Task.Delay(TimeSpan.FromMinutes(1), _provider, cts.Token);
 
         await cts.CancelAsync();
@@ -587,7 +587,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     [Test]
     public async Task PeriodicTimer_Ticks_AndStopsAfterDispose()
     {
-        var periodic = new PeriodicTimer(s_period, _provider);
+        PeriodicTimer periodic = new(s_period, _provider);
 
         Assert.That(await periodic.WaitForNextTickAsync(), Is.True);
 

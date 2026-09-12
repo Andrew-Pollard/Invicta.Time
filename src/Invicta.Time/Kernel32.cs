@@ -19,7 +19,16 @@ internal static unsafe partial class Kernel32
     internal const uint INFINITE = 0xFFFFFFFF;
     internal const uint WAIT_FAILED = 0xFFFFFFFF;
 
-    // lpTimerAttributes is only ever null here, so SECURITY_ATTRIBUTES isn't declared.
+    /// <summary>Creates or opens a waitable timer object.</summary>
+    /// <param name="lpTimerAttributes">
+    /// An optional <c>SECURITY_ATTRIBUTES</c> pointer, always null here, so that structure is not declared.
+    /// </param>
+    /// <param name="lpTimerName">A name for the timer, or null for an unnamed one.</param>
+    /// <param name="dwFlags">
+    /// <see cref="CREATE_WAITABLE_TIMER_HIGH_RESOLUTION"/>, or zero for a timer at the default resolution.
+    /// </param>
+    /// <param name="dwDesiredAccess">The access rights requested for the handle.</param>
+    /// <returns>A handle to the timer, or an invalid handle on failure.</returns>
     [LibraryImport(nameof(Kernel32), SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial SafeWaitHandle CreateWaitableTimerExW(
@@ -28,7 +37,17 @@ internal static unsafe partial class Kernel32
         uint dwFlags,
         uint dwDesiredAccess);
 
-    // A negative lpDueTime is a relative time in 100 ns units. BOOL is a 4-byte int that is zero on failure.
+    /// <summary>Activates the timer, either as a one-shot or as a periodic timer.</summary>
+    /// <param name="hTimer">The timer to activate.</param>
+    /// <param name="lpDueTime">
+    /// When the timer is first signaled. Negative values are a relative time in 100 ns units; positive values
+    /// are an absolute file time.
+    /// </param>
+    /// <param name="lPeriod">The period in milliseconds, or zero for a timer that signals once.</param>
+    /// <param name="pfnCompletionRoutine">An optional APC to queue when the timer signals, null here.</param>
+    /// <param name="lpArgToCompletionRoutine">The argument passed to that APC, null here.</param>
+    /// <param name="fResume">Nonzero to wake a suspended system when the timer signals, zero here.</param>
+    /// <returns>A Win32 <c>BOOL</c>, which is a 4-byte int that is zero on failure.</returns>
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial int SetWaitableTimer(
@@ -39,6 +58,10 @@ internal static unsafe partial class Kernel32
         void* lpArgToCompletionRoutine,
         int fResume);
 
+    /// <summary>Waits until the object is signaled or the timeout elapses.</summary>
+    /// <param name="hHandle">The object to wait on.</param>
+    /// <param name="dwMilliseconds">The timeout, or <see cref="INFINITE"/> to wait without one.</param>
+    /// <returns><c>WAIT_OBJECT_0</c> once signaled, or <see cref="WAIT_FAILED"/> on failure.</returns>
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial uint WaitForSingleObject(SafeWaitHandle hHandle, uint dwMilliseconds);

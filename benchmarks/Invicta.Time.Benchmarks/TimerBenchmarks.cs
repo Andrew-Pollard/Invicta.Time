@@ -18,7 +18,7 @@ namespace Invicta;
 [Config(typeof(Config))]
 [Outliers(OutlierMode.DontRemove)]
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
-    Justification = "BenchmarkDotNet uses PeriodicTimerWaitForNextTickAsyncCleanup for disposal.")]
+    Justification = "BenchmarkDotNet uses [GlobalCleanup] methods for disposal.")]
 public class TimerBenchmarks
 {
     [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
@@ -33,6 +33,8 @@ public class TimerBenchmarks
     }
 
     private PeriodicTimer? _periodicTimer;
+    private ITimer? _timer;
+    private SemaphoreSlim? _timerTickedSemaphore;
 
     /// <summary>
     /// The desired duration of the delay for each benchmark.
@@ -121,5 +123,68 @@ public class TimerBenchmarks
             Timeout.InfiniteTimeSpan);
 
         await fired.Task;
+    }
+
+    /// <summary>
+    /// Sets up the <see cref="ITimer"/> for <see cref="TimeProviderCreateTimerPeriodic"/>.
+    /// </summary>
+    [GlobalSetup(Target = nameof(TimeProviderCreateTimerPeriodic))]
+    public void TimeProviderCreateTimerPeriodicSetup()
+    {
+        // The timer invokes OnTick for its entire lifetime, from this setup method
+        // until cleanup, not only while TimeProviderCreateTimerPeriodic is being
+        // measured. Between iterations, and especially between stages, BenchmarkDotNet
+        // does work of its own, such as JIT compilation, overhead measurement and
+        // garbage collection, which can take longer than a tick. If every tick
+        // released the semaphore, the ticks during that work would accumulate as
+        // permits, and the first invocations of the next iteration would complete
+        // immediately, one for each accumulated tick, skewing the measurement.
+        //
+        // Releasing only when no permit is available discards the surplus ticks,
+        // so at most one invocation completes immediately after each pause. The
+        // long pauses fall mainly between stages, so that invocation is almost
+        // always in a jitting, pilot or warmup iteration rather than a measured
+        // one anyway.
+        static void OnTick(object? state)
+        {
+            SemaphoreSlim semaphore = (SemaphoreSlim)state!;
+
+            if (semaphore.CurrentCount == 0)
+            {
+                semaphore.Release();
+            }
+        }
+
+        _timerTickedSemaphore = new SemaphoreSlim(0);
+        _timer = NamedTimeProvider.Provider.CreateTimer(
+            OnTick,
+            _timerTickedSemaphore,
+            DesiredDuration,
+            DesiredDuration);
+    }
+
+    /// <summary>
+    /// Benchmarks the actual interval between the callbacks of
+    /// <see cref="TimeProvider.CreateTimer(TimerCallback, object?, TimeSpan, TimeSpan)"/>
+    /// when invoked with a period of <see cref="DesiredDuration"/>.
+    /// </summary>
+    [Benchmark]
+    public Task TimeProviderCreateTimerPeriodic()
+    {
+        return _timerTickedSemaphore!.WaitAsync();
+    }
+
+    /// <summary>
+    /// Cleans up the <see cref="ITimer"/> for <see cref="TimeProviderCreateTimerPeriodic"/>.
+    /// </summary>
+    [GlobalCleanup(Target = nameof(TimeProviderCreateTimerPeriodic))]
+    public async Task TimeProviderCreateTimerPeriodicCleanup()
+    {
+        if (_timer is not null)
+        {
+            await _timer.DisposeAsync();
+        }
+
+        _timerTickedSemaphore?.Dispose();
     }
 }

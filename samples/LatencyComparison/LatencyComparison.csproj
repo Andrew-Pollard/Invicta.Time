@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>10.0-all</AnalysisLevel>
+    <RootNamespace>Invicta</RootNamespace>
     <!--
       CA1416: the provider is Windows-only.
       CA2007: a console app has no synchronization context to avoid, so ConfigureAwait adds nothing.

@@ -95,7 +95,7 @@ is no longer referenced is collected and stops.
 
 ## Licence
 
-Released under the [MIT License](LICENSE).
+Released under the [MIT License][license].
 
 [createwaitabletimerexw]: https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-createwaitabletimerexw
 [timeprovider]: https://learn.microsoft.com/dotnet/standard/datetime/timeprovider-overview
@@ -103,3 +103,4 @@ Released under the [MIT License](LICENSE).
 [siliceum]: https://siliceum.com/en/blog/post/windows-high-resolution-timers
 [randomascii]: https://randomascii.wordpress.com/2020/10/04/windows-timer-resolution-the-great-rule-change
 [timerinvestigation]: https://github.com/Andrew-Pollard/Invicta.TimerInvestigation
+[license]: https://github.com/Andrew-Pollard/Invicta.Time/blob/master/LICENSE

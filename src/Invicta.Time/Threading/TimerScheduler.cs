@@ -12,7 +12,7 @@ namespace Invicta.Threading;
 
 /// <summary>
 /// Owns one high-resolution waitable timer and one background thread. Pending timers live in a sorted set ordered
-/// by their due <see cref="Stopwatch"/> timestamp; the kernel timer is always armed for the earliest one.
+/// by due time; the kernel timer is always armed for the earliest one.
 /// </summary>
 /// <remarks>
 /// There is no separate wake-up event. When a newly scheduled timer is due before the currently armed time, the
@@ -30,24 +30,18 @@ internal sealed class TimerScheduler
     private readonly Lock _lock = new();
     private readonly SortedSet<TimerEntry> _scheduled = new(Comparer<TimerEntry>.Create(CompareDueTimes));
 
-    // The kernel timer, and the Stopwatch timestamp it is armed for (long.MaxValue if unarmed, guarded by _lock).
+    // Due times are measured from this Stopwatch timestamp.
+    private readonly long _startTimestamp = Stopwatch.GetTimestamp();
+
+    // The kernel timer, and the due time it is armed for (TimeSpan.MaxValue if unarmed, guarded by _lock).
     private readonly SafeWaitHandle _timerHandle;
-    private long _armedDue = long.MaxValue;
+    private TimeSpan _armedDueTime = TimeSpan.MaxValue;
 
     /// <summary>Creates the kernel timer and starts the scheduler thread.</summary>
     /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
     private TimerScheduler()
     {
-        _timerHandle = Kernel32.CreateWaitableTimerExW(
-            lpTimerAttributes: nint.Zero,
-            lpTimerName: null,
-            Kernel32.CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
-            Kernel32.TIMER_MODIFY_STATE | Kernel32.SYNCHRONIZE);
-
-        if (_timerHandle.IsInvalid)
-        {
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), "CreateWaitableTimerExW failed.");
-        }
+        _timerHandle = CreateKernelTimer();
 
         new Thread(Run)
         {
@@ -59,28 +53,31 @@ internal sealed class TimerScheduler
 
     /// <summary>Removes an entry from the schedule, then adds it back with a new due time and period.</summary>
     /// <param name="entry">The entry to schedule.</param>
-    /// <param name="dueTicks"><see cref="Stopwatch"/> ticks from now, or -1 to leave the timer stopped.</param>
-    /// <param name="periodTicks"><see cref="Stopwatch"/> ticks between callbacks; 0 or -1 for a one-shot timer.</param>
-    public void Schedule(TimerEntry entry, long dueTicks, long periodTicks)
+    /// <param name="dueTime">
+    /// The delay before the first callback, or <see cref="Timeout.InfiniteTimeSpan"/> to leave the timer stopped.
+    /// </param>
+    /// <param name="period">
+    /// The interval between callbacks, or <see cref="Timeout.InfiniteTimeSpan"/> or zero for a one-shot timer.
+    /// </param>
+    public void Schedule(TimerEntry entry, TimeSpan dueTime, TimeSpan period)
     {
         lock (_lock)
         {
             _scheduled.Remove(entry);
 
-            if (dueTicks < 0)
+            if (dueTime == Timeout.InfiniteTimeSpan)
             {
                 return;
             }
 
-            long now = Stopwatch.GetTimestamp();
-            entry.DueTimestamp = now + dueTicks;
-            entry.PeriodTicks = periodTicks > 0 ? periodTicks : 0;
+            entry.DueTime = GetCurrentTime() + dueTime;
+            entry.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
 
             _scheduled.Add(entry);
 
-            if (entry.DueTimestamp < _armedDue)
+            if (entry.DueTime < _armedDueTime)
             {
-                Arm(entry.DueTimestamp, now);
+                Arm(entry.DueTime);
             }
         }
     }
@@ -102,77 +99,130 @@ internal sealed class TimerScheduler
     /// </summary>
     /// <param name="x">The first entry.</param>
     /// <param name="y">The second entry.</param>
-    /// <returns>A negative number if <paramref name="x"/> is due first, or a positive number if it is due later.</returns>
+    /// <returns>
+    /// A negative number if <paramref name="x"/> is due first, or a positive number if it is due later.
+    /// </returns>
     internal static int CompareDueTimes(TimerEntry x, TimerEntry y)
     {
-        int byDueTime = x.DueTimestamp.CompareTo(y.DueTimestamp);
+        int byDueTime = x.DueTime.CompareTo(y.DueTime);
 
         return byDueTime != 0 ? byDueTime : x.Sequence.CompareTo(y.Sequence);
     }
 
+    /// <summary>Creates the high-resolution kernel timer that every entry shares.</summary>
+    /// <returns>A handle to the timer.</returns>
+    /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
+    private static SafeWaitHandle CreateKernelTimer()
+    {
+        SafeWaitHandle handle = Kernel32.CreateWaitableTimerExW(
+            lpTimerAttributes: nint.Zero,
+            lpTimerName: null,
+            Kernel32.CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+            Kernel32.TIMER_MODIFY_STATE | Kernel32.SYNCHRONIZE);
+
+        if (handle.IsInvalid)
+        {
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "CreateWaitableTimerExW failed.");
+        }
+
+        return handle;
+    }
+
+    /// <summary>Gets the time elapsed since the scheduler started, which due times are measured against.</summary>
+    /// <returns>The current time on the scheduler's clock.</returns>
+    private TimeSpan GetCurrentTime() => Stopwatch.GetElapsedTime(_startTimestamp);
+
     /// <summary>Arms the kernel timer to signal at a due time.</summary>
-    /// <param name="dueTimestamp">The <see cref="Stopwatch"/> timestamp to signal at.</param>
-    /// <param name="now">The current <see cref="Stopwatch"/> timestamp.</param>
+    /// <param name="dueTime">The time to signal at, on the scheduler's clock.</param>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
     /// <exception cref="Win32Exception">The kernel timer could not be set.</exception>
-    private void Arm(long dueTimestamp, long now)
+    private void Arm(TimeSpan dueTime)
     {
-        // Relative due times are negative, in 100 ns units. Round up so we never wake before the due time
-        // (if the kernel still wakes us slightly early, the loop just re-arms for the remainder).
-        long delta = Math.Max(dueTimestamp - now, 0);
-        long hundredNs = Stopwatch.Frequency == TimeSpan.TicksPerSecond
-            ? delta
-            : (long)(((Int128)delta * TimeSpan.TicksPerSecond + Stopwatch.Frequency - 1) / Stopwatch.Frequency);
-        long relative = -Math.Max(hundredNs, 1);
+        // A negative due time is relative, in 100 ns intervals, which are TimeSpan ticks. If the kernel wakes the
+        // scheduler before the due time, nothing is due yet and it simply re-arms for the remainder.
+        TimeSpan delay = dueTime - GetCurrentTime();
+        long relativeDueTime = -Math.Max(delay.Ticks, 1);
 
-        if (Kernel32.SetWaitableTimer(_timerHandle, in relative, 0, nint.Zero, nint.Zero, fResume: 0) == 0)
+        if (Kernel32.SetWaitableTimer(_timerHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: 0) == 0)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
         }
 
-        _armedDue = dueTimestamp;
+        _armedDueTime = dueTime;
     }
 
     /// <summary>
-    /// The scheduler thread's loop: waits for the kernel timer, queues the callbacks of every entry that is due,
-    /// reschedules the periodic ones, and re-arms the kernel timer for the next entry.
+    /// The scheduler thread's loop: waits for the kernel timer, queues the callbacks of every entry that is due, and
+    /// re-arms the kernel timer for the next entry.
     /// </summary>
     /// <exception cref="Win32Exception">The wait for the kernel timer failed.</exception>
     private void Run()
     {
         while (true)
         {
-            if (Kernel32.WaitForSingleObject(_timerHandle, Kernel32.INFINITE) == Kernel32.WAIT_FAILED)
-            {
-                throw new Win32Exception(Marshal.GetLastPInvokeError(), "WaitForSingleObject failed.");
-            }
+            WaitForKernelTimer();
 
             lock (_lock)
             {
-                _armedDue = long.MaxValue;
+                _armedDueTime = TimeSpan.MaxValue;
 
-                long now = Stopwatch.GetTimestamp();
-                while (_scheduled.Min is { } entry && entry.DueTimestamp <= now)
-                {
-                    _scheduled.Remove(entry);
-
-                    if (entry.PeriodTicks > 0)
-                    {
-                        // Keep a drift-free cadence, but if we've fallen more than a period behind,
-                        // skip the missed ticks rather than firing a burst of catch-up callbacks.
-                        long next = entry.DueTimestamp + entry.PeriodTicks;
-                        entry.DueTimestamp = next > now ? next : now + entry.PeriodTicks;
-                        _scheduled.Add(entry);
-                    }
-
-                    ThreadPool.UnsafeQueueUserWorkItem(entry, preferLocal: false);
-                }
-
-                if (_scheduled.Min is { } earliest)
-                {
-                    Arm(earliest.DueTimestamp, Stopwatch.GetTimestamp());
-                }
+                QueueDueCallbacks();
+                ArmForEarliestEntry();
             }
+        }
+    }
+
+    /// <summary>Blocks until the kernel timer signals.</summary>
+    /// <exception cref="Win32Exception">The wait failed.</exception>
+    private void WaitForKernelTimer()
+    {
+        if (Kernel32.WaitForSingleObject(_timerHandle, Kernel32.INFINITE) == Kernel32.WAIT_FAILED)
+        {
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "WaitForSingleObject failed.");
+        }
+    }
+
+    /// <summary>
+    /// Queues the callback of every entry that is due to the thread pool, and reschedules the periodic ones.
+    /// </summary>
+    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    private void QueueDueCallbacks()
+    {
+        TimeSpan now = GetCurrentTime();
+        while (_scheduled.Min is { } entry && entry.DueTime <= now)
+        {
+            _scheduled.Remove(entry);
+
+            if (entry.Period > TimeSpan.Zero)
+            {
+                ScheduleNextTick(entry, now);
+            }
+
+            ThreadPool.UnsafeQueueUserWorkItem(entry, preferLocal: false);
+        }
+    }
+
+    /// <summary>Schedules a periodic entry's next tick after the one that has just come due.</summary>
+    /// <param name="entry">The periodic entry, which must not currently be scheduled.</param>
+    /// <param name="now">The current time on the scheduler's clock.</param>
+    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    private void ScheduleNextTick(TimerEntry entry, TimeSpan now)
+    {
+        // Keep a drift-free cadence, but if we've fallen more than a period behind, skip the missed ticks rather
+        // than firing a burst of catch-up callbacks.
+        TimeSpan nextDueTime = entry.DueTime + entry.Period;
+        entry.DueTime = nextDueTime > now ? nextDueTime : now + entry.Period;
+
+        _scheduled.Add(entry);
+    }
+
+    /// <summary>Arms the kernel timer for the entry that is due soonest, if there is one.</summary>
+    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    private void ArmForEarliestEntry()
+    {
+        if (_scheduled.Min is { } earliest)
+        {
+            Arm(earliest.DueTime);
         }
     }
 }

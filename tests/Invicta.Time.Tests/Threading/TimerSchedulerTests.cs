@@ -7,11 +7,14 @@ namespace Invicta.Threading;
 
 internal sealed class TimerSchedulerTests
 {
+    private static readonly TimeSpan s_earlier = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan s_later = TimeSpan.FromMilliseconds(200);
+
     [Test]
     public void CompareDueTimes_DifferentDueTimes_OrdersByDueTime()
     {
-        TimerEntry later = NewEntry(dueTimestamp: 200);
-        TimerEntry earlier = NewEntry(dueTimestamp: 100);
+        TimerEntry later = NewEntry(s_later);
+        TimerEntry earlier = NewEntry(s_earlier);
 
         using (Assert.EnterMultipleScope())
         {
@@ -23,8 +26,8 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void CompareDueTimes_SameDueTime_OrdersByCreation()
     {
-        TimerEntry first = NewEntry(dueTimestamp: 100);
-        TimerEntry second = NewEntry(dueTimestamp: 100);
+        TimerEntry first = NewEntry(s_earlier);
+        TimerEntry second = NewEntry(s_earlier);
 
         using (Assert.EnterMultipleScope())
         {
@@ -36,7 +39,7 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void CompareDueTimes_SameEntry_IsZero()
     {
-        TimerEntry entry = NewEntry(dueTimestamp: 100);
+        TimerEntry entry = NewEntry(s_earlier);
 
         Assert.That(TimerScheduler.CompareDueTimes(entry, entry), Is.Zero);
     }
@@ -44,7 +47,7 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void SortedSet_EntriesWithSameDueTime_AreAllKeptInCreationOrder()
     {
-        TimerEntry[] entries = [.. Enumerable.Range(0, 5).Select(_ => NewEntry(dueTimestamp: 100))];
+        TimerEntry[] entries = [.. Enumerable.Range(0, 5).Select(_ => NewEntry(s_earlier))];
         SortedSet<TimerEntry> scheduled = new(Comparer<TimerEntry>.Create(TimerScheduler.CompareDueTimes));
 
         foreach (TimerEntry entry in entries.Reverse())
@@ -55,6 +58,6 @@ internal sealed class TimerSchedulerTests
         Assert.That(scheduled, Is.EqualTo(entries));
     }
 
-    private static TimerEntry NewEntry(long dueTimestamp) =>
-        new(static _ => { }, null, null) { DueTimestamp = dueTimestamp };
+    private static TimerEntry NewEntry(TimeSpan dueTime) =>
+        new(static _ => { }, null, null) { DueTime = dueTime };
 }

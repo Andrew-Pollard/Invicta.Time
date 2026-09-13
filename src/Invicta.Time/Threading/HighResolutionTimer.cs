@@ -1,7 +1,7 @@
 // © 2026 Andrew Pollard. All rights reserved.
 // Licensed under the MIT License.
 
-using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 
 namespace Invicta.Threading;
@@ -14,6 +14,9 @@ namespace Invicta.Threading;
 [SupportedOSPlatform("windows10.0.17134")]
 internal sealed class HighResolutionTimer : ITimer
 {
+    // Matches System.Threading.Timer's upper bound (0xFFFFFFFE ms, ~49.7 days).
+    private const long MaxSupportedTimeoutMs = 0xFFFFFFFE;
+
     private readonly TimerEntry _entry;
 
     private HighResolutionTimer(TimerEntry entry) => _entry = entry;
@@ -39,21 +42,24 @@ internal sealed class HighResolutionTimer : ITimer
     {
         // Everything that can throw happens before the finalizable wrapper is allocated; otherwise a
         // half-constructed instance would reach the finalizer with a null _entry and crash the process.
-        long due = TimerEntry.ToStopwatchTicks(dueTime, nameof(dueTime));
-        long per = TimerEntry.ToStopwatchTicks(period, nameof(period));
+        ThrowIfInvalidTimeout(dueTime);
+        ThrowIfInvalidTimeout(period);
         _ = TimerScheduler.Instance;
 
         TimerEntry entry = new(callback, state, ExecutionContext.Capture());
-        entry.Change(due, per);
+        entry.Change(dueTime, period);
 
         return new HighResolutionTimer(entry);
     }
 
     /// <inheritdoc/>
-    public bool Change(TimeSpan dueTime, TimeSpan period) =>
-        _entry.Change(
-            TimerEntry.ToStopwatchTicks(dueTime, nameof(dueTime)),
-            TimerEntry.ToStopwatchTicks(period, nameof(period)));
+    public bool Change(TimeSpan dueTime, TimeSpan period)
+    {
+        ThrowIfInvalidTimeout(dueTime);
+        ThrowIfInvalidTimeout(period);
+
+        return _entry.Change(dueTime, period);
+    }
 
     /// <inheritdoc/>
     public void Dispose()
@@ -68,6 +74,31 @@ internal sealed class HighResolutionTimer : ITimer
         GC.SuppressFinalize(this);
 
         return _entry.CloseAsync();
+    }
+
+    /// <summary>
+    /// Throws if a due time or period is outside the range that <see cref="System.Threading.Timer"/> accepts.
+    /// </summary>
+    /// <param name="value">The due time or period.</param>
+    /// <param name="paramName">The name of the argument that <paramref name="value"/> came from.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="value"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>, or is longer than
+    /// 4294967294 milliseconds.
+    /// </exception>
+    private static void ThrowIfInvalidTimeout(
+        TimeSpan value,
+        [CallerArgumentExpression(nameof(value))] string? paramName = null)
+    {
+        bool isNegative = value < TimeSpan.Zero && value != Timeout.InfiniteTimeSpan;
+        bool isTooLong = (long)value.TotalMilliseconds > MaxSupportedTimeoutMs;
+
+        if (isNegative || isTooLong)
+        {
+            throw new ArgumentOutOfRangeException(
+                paramName,
+                value,
+                "The value must be Timeout.InfiniteTimeSpan or between 0 and 4294967294 milliseconds.");
+        }
     }
 }
 
@@ -85,10 +116,7 @@ internal sealed class HighResolutionTimer : ITimer
 internal sealed class TimerEntry(TimerCallback callback, object? state, ExecutionContext? executionContext)
     : IThreadPoolWorkItem
 {
-    // Matches System.Threading.Timer's upper bound (0xFFFFFFFE ms, ~49.7 days).
-    private const long MaxSupportedTimeoutMs = 0xFFFFFFFE;
-
-    private static readonly ContextCallback s_invokeInContext = static s => ((TimerEntry)s!).Invoke();
+    private static readonly ContextCallback s_invokeCallback = static s => ((TimerEntry)s!).InvokeCallback();
 
     private static long s_lastSequence;
 
@@ -106,51 +134,30 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     /// <summary>Gets a number unique to this entry, which orders entries that are due at the same time.</summary>
     internal long Sequence { get; } = Interlocked.Increment(ref s_lastSequence);
 
-    /// <summary>Gets or sets the <see cref="Stopwatch"/> timestamp at which the timer is next due.</summary>
+    /// <summary>Gets or sets when the timer is next due, on the <see cref="TimerScheduler"/>'s clock.</summary>
     /// <remarks>
     /// Guarded by the <see cref="TimerScheduler"/> lock. Only change it while the entry is not scheduled, because the
     /// scheduler keeps its entries sorted by this value.
     /// </remarks>
-    internal long DueTimestamp { get; set; }
+    internal TimeSpan DueTime { get; set; }
 
     /// <summary>
-    /// Gets or sets the number of <see cref="Stopwatch"/> ticks between callbacks, or zero for a one-shot timer.
+    /// Gets or sets the interval between callbacks, or <see cref="TimeSpan.Zero"/> for a one-shot timer.
     /// </summary>
     /// <remarks>Guarded by the <see cref="TimerScheduler"/> lock.</remarks>
-    internal long PeriodTicks { get; set; }
-
-    /// <summary>Converts to <see cref="Stopwatch"/> ticks; -1 means infinite.</summary>
-    internal static long ToStopwatchTicks(TimeSpan value, string paramName)
-    {
-        if (value == Timeout.InfiniteTimeSpan)
-        {
-            return -1;
-        }
-
-        if (value < TimeSpan.Zero || value.Ticks / TimeSpan.TicksPerMillisecond > MaxSupportedTimeoutMs)
-        {
-            throw new ArgumentOutOfRangeException(
-                paramName,
-                value,
-                "The value must be Timeout.InfiniteTimeSpan or between 0 and 4294967294 milliseconds.");
-        }
-
-        return Stopwatch.Frequency == TimeSpan.TicksPerSecond
-            ? value.Ticks
-            : (long)((Int128)value.Ticks * Stopwatch.Frequency / TimeSpan.TicksPerSecond);
-    }
+    internal TimeSpan Period { get; set; }
 
     /// <summary>Reschedules the timer, unless it has been closed.</summary>
-    /// <param name="dueTicks">
-    /// <see cref="Stopwatch"/> ticks until the first callback, or -1 to stop the timer.
+    /// <param name="dueTime">
+    /// The delay before the first callback, or <see cref="Timeout.InfiniteTimeSpan"/> to stop the timer.
     /// </param>
-    /// <param name="periodTicks">
-    /// <see cref="Stopwatch"/> ticks between callbacks, or 0 or -1 for a one-shot timer.
+    /// <param name="period">
+    /// The interval between callbacks, or <see cref="Timeout.InfiniteTimeSpan"/> or zero for a one-shot timer.
     /// </param>
     /// <returns>
     /// <see langword="true"/> if the timer was rescheduled; <see langword="false"/> if it has been closed.
     /// </returns>
-    public bool Change(long dueTicks, long periodTicks)
+    public bool Change(TimeSpan dueTime, TimeSpan period)
     {
         lock (_lock)
         {
@@ -159,7 +166,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
                 return false;
             }
 
-            TimerScheduler.Instance.Schedule(this, dueTicks, periodTicks);
+            TimerScheduler.Instance.Schedule(this, dueTime, period);
             return true;
         }
     }
@@ -208,40 +215,70 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     /// <summary>Invokes the callback on a thread pool thread, unless the timer has been closed.</summary>
     void IThreadPoolWorkItem.Execute()
     {
+        if (!TryStartCallback())
+        {
+            return;
+        }
+
+        try
+        {
+            RunCallback();
+        }
+        finally
+        {
+            EndCallback();
+        }
+    }
+
+    /// <summary>Records that a callback is starting, unless the timer has been closed.</summary>
+    /// <returns>
+    /// <see langword="true"/> if the callback should run; <see langword="false"/> if it should be skipped.
+    /// </returns>
+    private bool TryStartCallback()
+    {
         lock (_lock)
         {
             // A callback queued just before Close() is skipped rather than run after disposal.
             if (_closed)
             {
-                return;
+                return false;
             }
 
             _callbacksRunning++;
+            return true;
         }
+    }
 
-        try
+    /// <summary>Invokes the callback in the captured execution context, if there is one.</summary>
+    private void RunCallback()
+    {
+        if (_executionContext is null)
         {
-            if (_executionContext is null)
-            {
-                Invoke();
-            }
-            else
-            {
-                ExecutionContext.Run(_executionContext, s_invokeInContext, this);
-            }
+            InvokeCallback();
         }
-        finally
+        else
         {
-            lock (_lock)
+            ExecutionContext.Run(_executionContext, s_invokeCallback, this);
+        }
+    }
+
+    /// <summary>
+    /// Records that a callback has finished, and completes <see cref="CloseAsync"/> if it was the last one running
+    /// after the timer was closed.
+    /// </summary>
+    private void EndCallback()
+    {
+        lock (_lock)
+        {
+            _callbacksRunning--;
+
+            if (_callbacksRunning == 0 && _closed)
             {
-                if (--_callbacksRunning == 0 && _closed)
-                {
-                    _closeCompletion?.TrySetResult();
-                }
+                _closeCompletion?.TrySetResult();
             }
         }
     }
 
     /// <summary>Invokes the callback with its state.</summary>
-    private void Invoke() => _callback(_state);
+    private void InvokeCallback() => _callback(_state);
 }

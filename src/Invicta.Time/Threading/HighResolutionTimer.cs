@@ -90,6 +90,8 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
 
     private static readonly ContextCallback s_invokeInContext = static s => ((TimerEntry)s!).Invoke();
 
+    private static long s_lastSequence;
+
     private readonly TimerCallback _callback = callback;
     private readonly object? _state = state;
     private readonly ExecutionContext? _executionContext = executionContext;
@@ -101,8 +103,14 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     private int _callbacksRunning;
     private TaskCompletionSource? _closeCompletion;
 
+    /// <summary>Gets a number unique to this entry, which orders entries that are due at the same time.</summary>
+    internal long Sequence { get; } = Interlocked.Increment(ref s_lastSequence);
+
     /// <summary>Gets or sets the <see cref="Stopwatch"/> timestamp at which the timer is next due.</summary>
-    /// <remarks>Guarded by the <see cref="TimerScheduler"/> lock.</remarks>
+    /// <remarks>
+    /// Guarded by the <see cref="TimerScheduler"/> lock. Only change it while the entry is not scheduled, because the
+    /// scheduler keeps its entries sorted by this value.
+    /// </remarks>
     internal long DueTimestamp { get; set; }
 
     /// <summary>
@@ -110,10 +118,6 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     /// </summary>
     /// <remarks>Guarded by the <see cref="TimerScheduler"/> lock.</remarks>
     internal long PeriodTicks { get; set; }
-
-    /// <summary>Gets or sets the entry's index in the <see cref="TimerHeap"/>, or -1 if it is not in the heap.</summary>
-    /// <remarks>Guarded by the <see cref="TimerScheduler"/> lock.</remarks>
-    internal int HeapIndex { get; set; } = -1;
 
     /// <summary>Converts to <see cref="Stopwatch"/> ticks; -1 means infinite.</summary>
     internal static long ToStopwatchTicks(TimeSpan value, string paramName)

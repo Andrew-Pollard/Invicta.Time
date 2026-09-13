@@ -11,8 +11,8 @@ using Microsoft.Win32.SafeHandles;
 namespace Invicta.Threading;
 
 /// <summary>
-/// Owns one high-resolution waitable timer and one background thread. Pending timers live in a min-heap keyed
-/// on their due <see cref="Stopwatch"/> timestamp; the kernel timer is always armed for the earliest one.
+/// Owns one high-resolution waitable timer and one background thread. Pending timers live in a sorted set ordered
+/// by their due <see cref="Stopwatch"/> timestamp; the kernel timer is always armed for the earliest one.
 /// </summary>
 /// <remarks>
 /// There is no separate wake-up event. When a newly scheduled timer is due before the currently armed time, the
@@ -28,7 +28,7 @@ internal sealed class TimerScheduler
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
 
     private readonly Lock _lock = new();
-    private readonly TimerHeap _heap = new();
+    private readonly SortedSet<TimerEntry> _scheduled = new(Comparer<TimerEntry>.Create(CompareDueTimes));
 
     // The kernel timer, and the Stopwatch timestamp it is armed for (long.MaxValue if unarmed, guarded by _lock).
     private readonly SafeWaitHandle _timerHandle;
@@ -65,7 +65,7 @@ internal sealed class TimerScheduler
     {
         lock (_lock)
         {
-            _heap.Remove(entry);
+            _scheduled.Remove(entry);
 
             if (dueTicks < 0)
             {
@@ -76,7 +76,7 @@ internal sealed class TimerScheduler
             entry.DueTimestamp = now + dueTicks;
             entry.PeriodTicks = periodTicks > 0 ? periodTicks : 0;
 
-            _heap.Insert(entry);
+            _scheduled.Add(entry);
 
             if (entry.DueTimestamp < _armedDue)
             {
@@ -92,8 +92,22 @@ internal sealed class TimerScheduler
         // The kernel timer is left armed; a spurious wake-up just finds nothing due and re-arms.
         lock (_lock)
         {
-            _heap.Remove(entry);
+            _scheduled.Remove(entry);
         }
+    }
+
+    /// <summary>
+    /// Orders entries by due time, and entries due at the same time by <see cref="TimerEntry.Sequence"/>, so that
+    /// no two entries compare as equal.
+    /// </summary>
+    /// <param name="x">The first entry.</param>
+    /// <param name="y">The second entry.</param>
+    /// <returns>A negative number if <paramref name="x"/> is due first, or a positive number if it is due later.</returns>
+    internal static int CompareDueTimes(TimerEntry x, TimerEntry y)
+    {
+        int byDueTime = x.DueTimestamp.CompareTo(y.DueTimestamp);
+
+        return byDueTime != 0 ? byDueTime : x.Sequence.CompareTo(y.Sequence);
     }
 
     /// <summary>Arms the kernel timer to signal at a due time.</summary>
@@ -138,9 +152,9 @@ internal sealed class TimerScheduler
                 _armedDue = long.MaxValue;
 
                 long now = Stopwatch.GetTimestamp();
-                while (_heap.Peek() is { } entry && entry.DueTimestamp <= now)
+                while (_scheduled.Min is { } entry && entry.DueTimestamp <= now)
                 {
-                    _heap.RemoveMin();
+                    _scheduled.Remove(entry);
 
                     if (entry.PeriodTicks > 0)
                     {
@@ -148,13 +162,13 @@ internal sealed class TimerScheduler
                         // skip the missed ticks rather than firing a burst of catch-up callbacks.
                         long next = entry.DueTimestamp + entry.PeriodTicks;
                         entry.DueTimestamp = next > now ? next : now + entry.PeriodTicks;
-                        _heap.Insert(entry);
+                        _scheduled.Add(entry);
                     }
 
                     ThreadPool.UnsafeQueueUserWorkItem(entry, preferLocal: false);
                 }
 
-                if (_heap.Peek() is { } earliest)
+                if (_scheduled.Min is { } earliest)
                 {
                     Arm(earliest.DueTimestamp, Stopwatch.GetTimestamp());
                 }

@@ -45,7 +45,8 @@ resolution, so they are inherited unchanged.
 ## Design
 
 - **One kernel object:** a single waitable timer and one scheduler thread serve every `ITimer`.
-- **Indexed min-heap:** creating, changing and cancelling a timer are all O(log n).
+- **Sorted set:** pending timers are kept in a `SortedSet`, so creating, changing and cancelling a timer are all
+  O(log n).
 - **Armed for the earliest deadline:** a thread scheduling a sooner timer re-arms the kernel timer itself, so no
   wake-up event is needed.
 - **Thread pool callbacks:** queued as `System.Threading.Timer` does, so a starved pool still delays them.

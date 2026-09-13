@@ -18,6 +18,29 @@ This library packages those timers as a [`TimeProvider`][timeprovider]. Pass
 Requires .NET 10 and Windows 10 version 1803 (build 17134) or later; `HighResolutionTimeProvider.IsSupported`
 reports whether the current OS qualifies.
 
+## Usage
+
+Fall back to `TimeProvider.System` where high-resolution timers are unavailable, then pass the provider to any API
+that accepts one:
+
+```csharp
+TimeProvider provider = HighResolutionTimeProvider.IsSupported
+    ? HighResolutionTimeProvider.Instance
+    : TimeProvider.System;
+
+await Task.Delay(TimeSpan.FromMilliseconds(2), provider);
+
+using CancellationTokenSource timeout = new(TimeSpan.FromMilliseconds(5), provider);
+
+using PeriodicTimer timer = new(TimeSpan.FromMilliseconds(1), provider);
+while (await timer.WaitForNextTickAsync())
+{
+    // Runs every millisecond, rather than every 15.6 ms.
+}
+```
+
+Checking `IsSupported` this way also satisfies the platform compatibility analyzer (CA1416).
+
 ## Resolution
 
 Medians from `benchmarks/Invicta.Time.Benchmarks` with the displays asleep, on an AMD Ryzen 7 9800X3D running

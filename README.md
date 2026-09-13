@@ -68,6 +68,10 @@ is no longer referenced is collected and stops.
 - **Thread pool pressure:** a starved pool delays callbacks, exactly as it does for the built-in timers.
 - **Unaffected APIs:** `Thread.Sleep`, and `Task.Delay(TimeSpan)` without a provider, keep the system tick.
 
+## Licence
+
+Released under the [MIT License](LICENSE).
+
 [createwaitabletimerexw]: https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-createwaitabletimerexw
 [timeprovider]: https://learn.microsoft.com/dotnet/standard/datetime/timeprovider-overview
 [bearcats]: https://blog.bearcats.nl/perfect-sleep-function

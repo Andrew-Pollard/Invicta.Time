@@ -171,7 +171,8 @@ csharp_space_between_parentheses = false
 csharp_space_between_square_brackets = false
 
 # License header
-file_header_template = © 2026 Andrew Pollard. All rights reserved.
+file_header_template = © 2026 Andrew Pollard. All rights reserved.\nLicensed under the MIT License.
+dotnet_diagnostic.IDE0073.severity = suggestion
 
 # C++ Files
 [*.{cpp,h,in}]

@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>10.0-all</AnalysisLevel>
+    <IsPackable>false</IsPackable>
     <RootNamespace>Invicta</RootNamespace>
   </PropertyGroup>
 

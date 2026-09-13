@@ -11,9 +11,25 @@
     <IsAotCompatible>true</IsAotCompatible>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RootNamespace>Invicta</RootNamespace>
-    <PackageId>Invicta.Time</PackageId>
-    <Description>A System.TimeProvider whose timers use Windows high-resolution waitable timers (CREATE_WAITABLE_TIMER_HIGH_RESOLUTION) instead of the ~15.6 ms system clock tick.</Description>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Invicta.Time</PackageId>
+    <Version>1.0.0-alpha.1</Version>
+    <Authors>Andrew Pollard</Authors>
+    <Copyright>© 2026 Andrew Pollard. All rights reserved.</Copyright>
+    <Description>A System.TimeProvider whose timers use Windows high-resolution waitable timers (CREATE_WAITABLE_TIMER_HIGH_RESOLUTION) instead of the ~15.6 ms system clock tick.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>invicta time timeprovider timer highresolution windows</PackageTags>
+    <PackageProjectUrl>https://github.com/Andrew-Pollard/Invicta.Time</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Andrew-Pollard/Invicta.Time</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Invicta.Time.Tests" />

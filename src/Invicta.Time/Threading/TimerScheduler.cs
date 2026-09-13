@@ -22,6 +22,7 @@ namespace Invicta.Threading;
 [SupportedOSPlatform("windows10.0.17134")]
 internal sealed class TimerScheduler
 {
+    /// <summary>Gets the scheduler, creating it on first use.</summary>
     public static TimerScheduler Instance => s_instance.Value;
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
 
@@ -32,6 +33,8 @@ internal sealed class TimerScheduler
     private readonly SafeWaitHandle _timerHandle;
     private long _armedDue = long.MaxValue;
 
+    /// <summary>Creates the kernel timer and starts the scheduler thread.</summary>
+    /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
     private TimerScheduler()
     {
         _timerHandle = Kernel32.CreateWaitableTimerExW(
@@ -53,8 +56,10 @@ internal sealed class TimerScheduler
         }.Start();
     }
 
-    // dueTicks: Stopwatch ticks from now, or -1 to leave the timer stopped.
-    // periodTicks: Stopwatch ticks between callbacks; 0 or -1 for a one-shot timer.
+    /// <summary>Removes an entry from the schedule, then adds it back with a new due time and period.</summary>
+    /// <param name="entry">The entry to schedule.</param>
+    /// <param name="dueTicks"><see cref="Stopwatch"/> ticks from now, or -1 to leave the timer stopped.</param>
+    /// <param name="periodTicks"><see cref="Stopwatch"/> ticks between callbacks; 0 or -1 for a one-shot timer.</param>
     public void Schedule(TimerEntry entry, long dueTicks, long periodTicks)
     {
         lock (_lock)
@@ -79,6 +84,8 @@ internal sealed class TimerScheduler
         }
     }
 
+    /// <summary>Removes an entry from the schedule, so that it no longer fires.</summary>
+    /// <param name="entry">The entry to remove.</param>
     public void Unschedule(TimerEntry entry)
     {
         // The kernel timer is left armed; a spurious wake-up just finds nothing due and re-arms.
@@ -88,6 +95,11 @@ internal sealed class TimerScheduler
         }
     }
 
+    /// <summary>Arms the kernel timer to signal at a due time.</summary>
+    /// <param name="dueTimestamp">The <see cref="Stopwatch"/> timestamp to signal at.</param>
+    /// <param name="now">The current <see cref="Stopwatch"/> timestamp.</param>
+    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    /// <exception cref="Win32Exception">The kernel timer could not be set.</exception>
     private void Arm(long dueTimestamp, long now)
     {
         // Relative due times are negative, in 100 ns units. Round up so we never wake before the due time
@@ -106,6 +118,11 @@ internal sealed class TimerScheduler
         _armedDue = dueTimestamp;
     }
 
+    /// <summary>
+    /// The scheduler thread's loop: waits for the kernel timer, queues the callbacks of every entry that is due,
+    /// reschedules the periodic ones, and re-arms the kernel timer for the next entry.
+    /// </summary>
+    /// <exception cref="Win32Exception">The wait for the kernel timer failed.</exception>
     private void Run()
     {
         while (true)

@@ -21,6 +21,9 @@ namespace Invicta;
     Justification = "BenchmarkDotNet uses [GlobalCleanup] methods for disposal.")]
 public class TimerBenchmarks
 {
+    /// <summary>
+    /// Adds the median, 95th percentile and maximum columns, and reports times in milliseconds.
+    /// </summary>
     [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
         Justification = "Instantiated by BenchmarkDotNet via reflection.")]
     private sealed class Config : ManualConfig

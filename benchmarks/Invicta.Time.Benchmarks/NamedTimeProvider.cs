@@ -10,5 +10,9 @@ namespace Invicta;
 /// <param name="Provider">The time provider.</param>
 public sealed record NamedTimeProvider(string Name, TimeProvider Provider)
 {
+    /// <summary>
+    /// Returns <see cref="Name"/>, which BenchmarkDotNet shows in the benchmark output.
+    /// </summary>
+    /// <returns>The name.</returns>
     public override string ToString() => Name;
 }

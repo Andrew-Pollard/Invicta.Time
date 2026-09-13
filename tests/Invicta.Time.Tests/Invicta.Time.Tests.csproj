@@ -7,13 +7,6 @@
     <AnalysisLevel>10.0-all</AnalysisLevel>
     <IsPackable>false</IsPackable>
     <RootNamespace>Invicta</RootNamespace>
-    <!--
-      CA1416: the provider is Windows-only; don't flag every call site in tests.
-      CA1707: test names follow the Method_Scenario_Expectation convention.
-      CA2007: there's no synchronization context to avoid, so ConfigureAwait adds nothing.
-      CA5394: seeded System.Random is deliberate, for reproducible test data.
-    -->
-    <NoWarn>$(NoWarn);CA1416;CA1707;CA2007;CA5394</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

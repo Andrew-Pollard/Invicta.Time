@@ -1,16 +1,15 @@
 // © 2026 Andrew Pollard. All rights reserved.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 using Microsoft.Win32.SafeHandles;
 
 namespace Invicta;
 
-// Names and types follow the Win32 headers rather than .editorconfig's .NET naming rules, per
-// https://learn.microsoft.com/dotnet/standard/native-interop/best-practices.
-#pragma warning disable IDE1006 // Naming Styles
-
 /// <summary>P/Invoke declarations for kernel32.dll.</summary>
+[SuppressMessage("Style", "IDE1006:Naming Styles",
+    Justification = "Names follow the Win32 headers, per the .NET native interoperability best practices.")]
 internal static partial class Kernel32
 {
     internal const uint CREATE_WAITABLE_TIMER_HIGH_RESOLUTION = 0x00000002;
@@ -31,6 +30,7 @@ internal static partial class Kernel32
     /// </param>
     /// <param name="dwDesiredAccess">The access rights requested for the handle.</param>
     /// <returns>A handle to the timer, or an invalid handle on failure.</returns>
+    /// <seealso href="https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-createwaitabletimerexw"/>
     [LibraryImport(nameof(Kernel32), SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial SafeWaitHandle CreateWaitableTimerExW(
@@ -52,6 +52,7 @@ internal static partial class Kernel32
     /// <param name="lpArgToCompletionRoutine">The argument passed to that APC, always zero here.</param>
     /// <param name="fResume">Nonzero to wake a suspended system when the timer signals, zero here.</param>
     /// <returns>A Win32 <c>BOOL</c>, which is a 4-byte int that is zero on failure.</returns>
+    /// <seealso href="https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-setwaitabletimer"/>
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial int SetWaitableTimer(
@@ -66,6 +67,7 @@ internal static partial class Kernel32
     /// <param name="hHandle">The object to wait on.</param>
     /// <param name="dwMilliseconds">The timeout, or <see cref="INFINITE"/> to wait without one.</param>
     /// <returns><c>WAIT_OBJECT_0</c> once signaled, or <see cref="WAIT_FAILED"/> on failure.</returns>
+    /// <seealso href="https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject"/>
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial uint WaitForSingleObject(SafeWaitHandle hHandle, uint dwMilliseconds);

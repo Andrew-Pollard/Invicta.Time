@@ -14,6 +14,7 @@ namespace Invicta;
 
 /// <summary>
 /// Benchmarks comparing <see cref="TimeProvider.System"/> and <see cref="HighResolutionTimeProvider.Instance"/>.
+/// Each benchmark requests 1 ms, as a delay, a due time or a period, and measures how long it actually takes.
 /// </summary>
 [Config(typeof(Config))]
 [Outliers(OutlierMode.DontRemove)]
@@ -35,15 +36,12 @@ public class TimerBenchmarks
         }
     }
 
+    private static readonly TimeSpan s_desiredDuration = TimeSpan.FromMilliseconds(1);
+
     private PeriodicTimer? _periodicTimer;
 
     private ITimer? _timer;
     private SemaphoreSlim? _timerTickedSemaphore;
-
-    /// <summary>
-    /// The desired duration of the delay for each benchmark.
-    /// </summary>
-    private static TimeSpan DesiredDuration { get; } = TimeSpan.FromMilliseconds(1);
 
     /// <summary>
     /// The <see cref="Invicta.NamedTimeProvider"/>s to benchmark.
@@ -72,13 +70,12 @@ public class TimerBenchmarks
     public NamedTimeProvider NamedTimeProvider { get; set; } = null!;
 
     /// <summary>
-    /// Benchmarks the actual delay produced by <see cref="Task.Delay(TimeSpan, TimeProvider)"/>
-    /// when invoked with a delay of <see cref="DesiredDuration"/>.
+    /// Benchmarks the actual delay produced by <see cref="Task.Delay(TimeSpan, TimeProvider)"/>.
     /// </summary>
     [Benchmark]
     public Task TaskDelay()
     {
-        return Task.Delay(DesiredDuration, NamedTimeProvider.Provider);
+        return Task.Delay(s_desiredDuration, NamedTimeProvider.Provider);
     }
 
     /// <summary>
@@ -87,13 +84,12 @@ public class TimerBenchmarks
     [GlobalSetup(Target = nameof(PeriodicTimerWaitForNextTickAsync))]
     public void PeriodicTimerWaitForNextTickAsyncSetup()
     {
-        _periodicTimer = new(DesiredDuration, NamedTimeProvider.Provider);
+        _periodicTimer = new(s_desiredDuration, NamedTimeProvider.Provider);
     }
 
     /// <summary>
     /// Benchmarks the actual interval between ticks produced by
-    /// <see cref="PeriodicTimer.WaitForNextTickAsync(CancellationToken)"/> when
-    /// invoked with a period of <see cref="DesiredDuration"/>.
+    /// <see cref="PeriodicTimer.WaitForNextTickAsync(CancellationToken)"/>.
     /// </summary>
     [Benchmark]
     public ValueTask<bool> PeriodicTimerWaitForNextTickAsync()
@@ -111,9 +107,8 @@ public class TimerBenchmarks
     }
 
     /// <summary>
-    /// Benchmarks the actual delay produced by
-    /// <see cref="TimeProvider.CreateTimer(TimerCallback, object?, TimeSpan, TimeSpan)"/>
-    /// when invoked with a due time of <see cref="DesiredDuration"/>.
+    /// Benchmarks the actual delay before a one-shot timer from
+    /// <see cref="TimeProvider.CreateTimer(TimerCallback, object?, TimeSpan, TimeSpan)"/> invokes its callback.
     /// </summary>
     [Benchmark]
     public async Task TimeProviderCreateTimerOneShot()
@@ -123,7 +118,7 @@ public class TimerBenchmarks
         using ITimer timer = NamedTimeProvider.Provider.CreateTimer(
             static state => ((TaskCompletionSource)state!).TrySetResult(),
             fired,
-            DesiredDuration,
+            s_desiredDuration,
             Timeout.InfiniteTimeSpan);
 
         await fired.Task;
@@ -163,14 +158,13 @@ public class TimerBenchmarks
         _timer = NamedTimeProvider.Provider.CreateTimer(
             OnTick,
             _timerTickedSemaphore,
-            DesiredDuration,
-            DesiredDuration);
+            s_desiredDuration,
+            s_desiredDuration);
     }
 
     /// <summary>
-    /// Benchmarks the actual interval between the callbacks of
-    /// <see cref="TimeProvider.CreateTimer(TimerCallback, object?, TimeSpan, TimeSpan)"/>
-    /// when invoked with a period of <see cref="DesiredDuration"/>.
+    /// Benchmarks the actual interval between the callbacks of a periodic timer from
+    /// <see cref="TimeProvider.CreateTimer(TimerCallback, object?, TimeSpan, TimeSpan)"/>.
     /// </summary>
     [Benchmark]
     public Task TimeProviderCreateTimerPeriodic()

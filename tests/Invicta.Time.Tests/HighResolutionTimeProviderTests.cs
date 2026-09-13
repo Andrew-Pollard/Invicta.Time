@@ -41,6 +41,7 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
+    [Category(TestCategories.Timing)]
     public async Task TaskDelay_OneMillisecond_IsFarBelowSystemTickResolution()
     {
         double[] samples = new double[50];
@@ -88,6 +89,7 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
+    [Category(TestCategories.Timing)]
     public async Task Periodic_OneMillisecond_FiresAtRoughlyOneKilohertz()
     {
         int count = 0;
@@ -145,6 +147,7 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
+    [Category(TestCategories.Timing)]
     public async Task CancellationTokenSource_WithProvider_CancelsOnTime()
     {
         long start = Stopwatch.GetTimestamp();
@@ -157,6 +160,7 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
+    [Category(TestCategories.Timing)]
     public async Task PeriodicTimer_WithProvider_Ticks()
     {
         using PeriodicTimer periodic = new(TimeSpan.FromMilliseconds(1), s_provider);

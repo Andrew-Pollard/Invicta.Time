@@ -127,6 +127,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
+    [Category(TestCategories.Timing)]
     public async Task Timer_WithPeriod_FiresRepeatedly()
     {
         int count = 0;
@@ -298,6 +299,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
+    [Category(TestCategories.Timing)]
     public async Task Timer_BlockedCallback_DoesNotBlockOtherTimers()
     {
         using ManualResetEventSlim release = new();

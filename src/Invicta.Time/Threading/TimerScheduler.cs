@@ -51,7 +51,7 @@ internal sealed class TimerScheduler
         }.Start();
     }
 
-    /// <summary>Removes an entry from the schedule, then adds it back with a new due time and period.</summary>
+    /// <summary>Schedules an entry with a new due time and period, replacing any schedule it already has.</summary>
     /// <param name="entry">The entry to schedule.</param>
     /// <param name="dueTime">
     /// The delay before the first callback, or <see cref="Timeout.InfiniteTimeSpan"/> to leave the timer stopped.
@@ -63,17 +63,14 @@ internal sealed class TimerScheduler
     {
         lock (_lock)
         {
-            _scheduled.Remove(entry);
-
             if (dueTime == Timeout.InfiniteTimeSpan)
             {
+                _scheduled.Remove(entry);
                 return;
             }
 
-            entry.DueTime = GetCurrentTime() + dueTime;
             entry.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
-
-            _scheduled.Add(entry);
+            AddAtDueTime(entry, GetCurrentTime() + dueTime);
 
             if (entry.DueTime < _armedDueTime)
             {
@@ -109,6 +106,22 @@ internal sealed class TimerScheduler
         return byDueTime != 0 ? byDueTime : x.Sequence.CompareTo(y.Sequence);
     }
 
+    /// <summary>
+    /// Calculates when a periodic timer is next due after a tick. Ticks keep to a fixed cadence from the first due
+    /// time, but if a whole period has already passed, the missed ticks are skipped rather than fired in a burst and
+    /// the cadence restarts from now.
+    /// </summary>
+    /// <param name="dueTime">The due time of the tick that has just come due.</param>
+    /// <param name="period">The interval between ticks.</param>
+    /// <param name="now">The current time on the scheduler's clock.</param>
+    /// <returns>The due time of the next tick.</returns>
+    internal static TimeSpan GetNextDueTime(TimeSpan dueTime, TimeSpan period, TimeSpan now)
+    {
+        TimeSpan nextDueTime = dueTime + period;
+
+        return nextDueTime > now ? nextDueTime : now + period;
+    }
+
     /// <summary>Creates the high-resolution kernel timer that every entry shares.</summary>
     /// <returns>A handle to the timer.</returns>
     /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
@@ -131,6 +144,21 @@ internal sealed class TimerScheduler
     /// <summary>Gets the time elapsed since the scheduler started, which due times are measured against.</summary>
     /// <returns>The current time on the scheduler's clock.</returns>
     private TimeSpan GetCurrentTime() => Stopwatch.GetElapsedTime(_startTimestamp);
+
+    /// <summary>
+    /// Sets an entry's due time and adds it to the schedule. The entry is removed from the schedule first, because
+    /// the sorted set is ordered by due time and would be corrupted if it changed while the entry was in it.
+    /// </summary>
+    /// <param name="entry">The entry to add.</param>
+    /// <param name="dueTime">The time the entry is due, on the scheduler's clock.</param>
+    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    private void AddAtDueTime(TimerEntry entry, TimeSpan dueTime)
+    {
+        _scheduled.Remove(entry);
+
+        entry.DueTime = dueTime;
+        _scheduled.Add(entry);
+    }
 
     /// <summary>Arms the kernel timer to signal at a due time.</summary>
     /// <param name="dueTime">The time to signal at, on the scheduler's clock.</param>
@@ -191,29 +219,17 @@ internal sealed class TimerScheduler
         TimeSpan now = GetCurrentTime();
         while (_scheduled.Min is { } entry && entry.DueTime <= now)
         {
-            _scheduled.Remove(entry);
-
             if (entry.Period > TimeSpan.Zero)
             {
-                ScheduleNextTick(entry, now);
+                AddAtDueTime(entry, GetNextDueTime(entry.DueTime, entry.Period, now));
+            }
+            else
+            {
+                _scheduled.Remove(entry);
             }
 
             ThreadPool.UnsafeQueueUserWorkItem(entry, preferLocal: false);
         }
-    }
-
-    /// <summary>Schedules a periodic entry's next tick after the one that has just come due.</summary>
-    /// <param name="entry">The periodic entry, which must not currently be scheduled.</param>
-    /// <param name="now">The current time on the scheduler's clock.</param>
-    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    private void ScheduleNextTick(TimerEntry entry, TimeSpan now)
-    {
-        // Keep a drift-free cadence, but if we've fallen more than a period behind, skip the missed ticks rather
-        // than firing a burst of catch-up callbacks.
-        TimeSpan nextDueTime = entry.DueTime + entry.Period;
-        entry.DueTime = nextDueTime > now ? nextDueTime : now + entry.Period;
-
-        _scheduled.Add(entry);
     }
 
     /// <summary>Arms the kernel timer for the entry that is due soonest, if there is one.</summary>

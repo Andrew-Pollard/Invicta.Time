@@ -59,9 +59,11 @@ is no longer referenced is collected and stops.
 
 - **Late, never early:** a timer fires up to about 0.5 ms after its due time, depending on when it was armed,
   plus the thread pool hop.
-- **Screen activity:** while the screen is updating, `TimeProvider.System` timers can fire on the display's frame
-  boundaries instead of the tick, so its figures fall with the refresh rate: to about 12 ms on average at 60 Hz,
-  8.4 ms at 120 Hz and 5.6 ms at 180 Hz. `HighResolutionTimeProvider` is unaffected. The measurements are in
+- **Other processes' resolution changes:** whenever any process raises or lowers the timer resolution, every
+  overdue `TimeProvider.System` timer fires at once. Animating Chromium-based browsers and Electron apps do this in
+  bursts once a frame, which pulls the system provider's figures down towards the display's refresh interval,
+  such as 5.6 ms at 180 Hz. `HighResolutionTimeProvider` is unaffected, and because its timers leave the resolution
+  alone, it does not disturb other processes either. The measurements are in
   [Invicta.TimerInvestigation][timerinvestigation].
 - **Thread pool pressure:** a starved pool delays callbacks, exactly as it does for the built-in timers.
 - **Unaffected APIs:** `Thread.Sleep`, and `Task.Delay(TimeSpan)` without a provider, keep the system tick.

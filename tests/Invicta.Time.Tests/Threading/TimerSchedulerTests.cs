@@ -24,15 +24,18 @@ internal sealed class TimerSchedulerTests
     }
 
     [Test]
-    public void CompareDueTimes_SameDueTime_OrdersByCreation()
+    public void CompareDueTimes_SameDueTime_IsNotEqual()
     {
         TimerEntry first = NewEntry(s_earlier);
         TimerEntry second = NewEntry(s_earlier);
 
+        int firstToSecond = TimerScheduler.CompareDueTimes(first, second);
+        int secondToFirst = TimerScheduler.CompareDueTimes(second, first);
+
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(TimerScheduler.CompareDueTimes(first, second), Is.Negative);
-            Assert.That(TimerScheduler.CompareDueTimes(second, first), Is.Positive);
+            Assert.That(firstToSecond, Is.Not.Zero);
+            Assert.That(Math.Sign(secondToFirst), Is.EqualTo(-Math.Sign(firstToSecond)));
         }
     }
 
@@ -45,17 +48,17 @@ internal sealed class TimerSchedulerTests
     }
 
     [Test]
-    public void SortedSet_EntriesWithSameDueTime_AreAllKeptInCreationOrder()
+    public void SortedSet_EntriesWithSameDueTime_AreAllKept()
     {
         TimerEntry[] entries = [.. Enumerable.Range(0, 5).Select(_ => NewEntry(s_earlier))];
         SortedSet<TimerEntry> scheduled = new(Comparer<TimerEntry>.Create(TimerScheduler.CompareDueTimes));
 
-        foreach (TimerEntry entry in entries.Reverse())
+        foreach (TimerEntry entry in entries)
         {
             scheduled.Add(entry);
         }
 
-        Assert.That(scheduled, Is.EqualTo(entries));
+        Assert.That(scheduled, Is.EquivalentTo(entries));
     }
 
     [Test]

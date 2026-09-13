@@ -98,8 +98,9 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>
-    /// Orders entries by due time, and entries due at the same time by <see cref="TimerEntry.Sequence"/>, so that
-    /// no two entries compare as equal.
+    /// Orders entries by due time, breaking ties with <see cref="TimerEntry.Id"/> so that different entries never
+    /// compare as equal. <see cref="SortedSet{T}"/> treats entries that compare as equal as duplicates, which would
+    /// drop a timer that is due at the same time as another.
     /// </summary>
     /// <param name="x">The first entry.</param>
     /// <param name="y">The second entry.</param>
@@ -110,7 +111,7 @@ internal sealed class TimerScheduler
     {
         int byDueTime = x.DueTime.CompareTo(y.DueTime);
 
-        return byDueTime != 0 ? byDueTime : x.Sequence.CompareTo(y.Sequence);
+        return byDueTime != 0 ? byDueTime : x.Id.CompareTo(y.Id);
     }
 
     /// <summary>

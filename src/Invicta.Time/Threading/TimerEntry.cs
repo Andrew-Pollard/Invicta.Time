@@ -21,7 +21,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
 {
     private static readonly ContextCallback s_invokeCallback = static s => ((TimerEntry)s!).InvokeCallback();
 
-    private static long s_lastSequence;
+    private static long s_lastId;
 
     private readonly TimerCallback _callback = callback;
     private readonly object? _state = state;
@@ -34,8 +34,12 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     private int _callbacksRunning;
     private TaskCompletionSource? _closeCompletion;
 
-    /// <summary>Gets a number unique to this entry, which orders entries that are due at the same time.</summary>
-    internal long Sequence { get; } = Interlocked.Increment(ref s_lastSequence);
+    /// <summary>Gets a number that uniquely identifies this entry.</summary>
+    /// <remarks>
+    /// The scheduler uses it to distinguish entries that are due at the same time, so that its sorted set does not
+    /// treat them as duplicates.
+    /// </remarks>
+    internal long Id { get; } = Interlocked.Increment(ref s_lastId);
 
     /// <summary>Gets or sets when the timer is next due, on the <see cref="TimerScheduler"/>'s clock.</summary>
     /// <remarks>

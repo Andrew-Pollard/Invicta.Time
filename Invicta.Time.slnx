@@ -3,7 +3,7 @@
     <Project Path="benchmarks/Invicta.Time.Benchmarks/Invicta.Time.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/samples/">
-    <Project Path="samples/LatencyComparison/LatencyComparison.csproj" />
+    <Project Path="samples/Invicta.Time.Samples/Invicta.Time.Samples.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Invicta.Time/Invicta.Time.csproj" />

@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+
 using NUnit.Framework;
 
 namespace Invicta;
@@ -17,6 +18,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     // Comfortably longer than the ~15.6 ms tick that TimeProvider.System's timers are limited to.
     private static readonly TimeSpan s_due = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan s_period = TimeSpan.FromMilliseconds(50);
+
     private static readonly TimeSpan s_timeout = TimeSpan.FromSeconds(10);
 
     // TimeProvider.System rounds to its tick, so a callback can arrive just before Stopwatch agrees the due time
@@ -196,6 +198,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
             Timeout.InfiniteTimeSpan);
 
         Assert.That(timer.Change(s_due, Timeout.InfiniteTimeSpan), Is.True);
+
         TimeSpan elapsed = await fired.Task.WaitAsync(s_timeout);
         Assert.That(elapsed, Is.LessThan(TimeSpan.FromMinutes(1)));
     }
@@ -230,6 +233,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
             null,
             s_period,
             s_period);
+
         self.Value = timer;
 
         TimeSpan gap = await thirdTick.Task.WaitAsync(s_timeout);
@@ -253,6 +257,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
             null,
             s_due,
             s_period);
+
         self.Value = timer;
 
         await fired.Task.WaitAsync(s_timeout);
@@ -324,11 +329,12 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     public async Task ManyTimers_AllFire()
     {
         const int TimerCount = 100;
-        Random random = new(42);
-        TaskCompletionSource done = new();
-        int remaining = TimerCount;
-        ITimer[] timers = new ITimer[TimerCount];
 
+        int remaining = TimerCount;
+        TaskCompletionSource done = new();
+
+        Random random = new(42);
+        ITimer[] timers = new ITimer[TimerCount];
         for (int i = 0; i < TimerCount; i++)
         {
             timers[i] = _provider.CreateTimer(
@@ -357,10 +363,11 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     {
         const int Threads = 8;
         const int PerThread = 10;
-        TaskCompletionSource done = new();
-        int remaining = Threads * PerThread;
-        ITimer[] timers = new ITimer[Threads * PerThread];
 
+        int remaining = Threads * PerThread;
+        TaskCompletionSource done = new();
+
+        ITimer[] timers = new ITimer[Threads * PerThread];
         Parallel.For(0, Threads, t =>
         {
             for (int i = 0; i < PerThread; i++)
@@ -396,6 +403,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
 
         await Task.Delay(s_period * 4);
         timer.Dispose();
+
         await Task.Delay(s_period);
         int afterDispose = Volatile.Read(ref count);
         await Task.Delay(s_period * 4);
@@ -435,6 +443,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
             Timeout.InfiniteTimeSpan);
 
         await entered.Task.WaitAsync(s_timeout);
+
         ValueTask disposal = timer.DisposeAsync();
         Assert.That(disposal.IsCompleted, Is.False);
 
@@ -468,8 +477,8 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     {
         ITimer timer = _provider.CreateTimer(
             _ => { }, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        timer.Dispose();
 
+        timer.Dispose();
         Assert.That(timer.Change(s_due, Timeout.InfiniteTimeSpan), Is.False);
     }
 

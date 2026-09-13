@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+
 using Microsoft.Win32.SafeHandles;
 
 namespace Invicta.Threading;
@@ -21,13 +22,14 @@ namespace Invicta.Threading;
 [SupportedOSPlatform("windows10.0.17134")]
 internal sealed class TimerScheduler
 {
+    public static TimerScheduler Instance => s_instance.Value;
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
 
     private readonly Lock _lock = new();
     private readonly TimerHeap _heap = new();
-    private readonly SafeWaitHandle _timerHandle;
 
-    // Stopwatch timestamp the kernel timer is armed for, or long.MaxValue if unarmed. Guarded by _lock.
+    // The kernel timer, and the Stopwatch timestamp it is armed for (long.MaxValue if unarmed, guarded by _lock).
+    private readonly SafeWaitHandle _timerHandle;
     private long _armedDue = long.MaxValue;
 
     private TimerScheduler()
@@ -37,6 +39,7 @@ internal sealed class TimerScheduler
             lpTimerName: null,
             Kernel32.CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
             Kernel32.TIMER_MODIFY_STATE | Kernel32.SYNCHRONIZE);
+
         if (_timerHandle.IsInvalid)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "CreateWaitableTimerExW failed.");
@@ -50,8 +53,6 @@ internal sealed class TimerScheduler
         }.Start();
     }
 
-    public static TimerScheduler Instance => s_instance.Value;
-
     // dueTicks: Stopwatch ticks from now, or -1 to leave the timer stopped.
     // periodTicks: Stopwatch ticks between callbacks; 0 or -1 for a one-shot timer.
     public void Schedule(TimerEntry entry, long dueTicks, long periodTicks)
@@ -59,6 +60,7 @@ internal sealed class TimerScheduler
         lock (_lock)
         {
             _heap.Remove(entry);
+
             if (dueTicks < 0)
             {
                 return;
@@ -67,6 +69,7 @@ internal sealed class TimerScheduler
             long now = Stopwatch.GetTimestamp();
             entry.DueTimestamp = now + dueTicks;
             entry.PeriodTicks = periodTicks > 0 ? periodTicks : 0;
+
             _heap.Insert(entry);
 
             if (entry.DueTimestamp < _armedDue)
@@ -115,8 +118,8 @@ internal sealed class TimerScheduler
             lock (_lock)
             {
                 _armedDue = long.MaxValue;
-                long now = Stopwatch.GetTimestamp();
 
+                long now = Stopwatch.GetTimestamp();
                 while (_heap.Peek() is { } entry && entry.DueTimestamp <= now)
                 {
                     _heap.RemoveMin();

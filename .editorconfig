@@ -34,6 +34,14 @@ csharp_new_line_before_members_in_object_initializers = true
 csharp_new_line_before_members_in_anonymous_types = true
 csharp_new_line_between_query_expression_clauses = true
 
+# Blank line preferences
+dotnet_style_allow_multiple_blank_lines_experimental = false:suggestion
+dotnet_style_allow_statement_immediately_after_block_experimental = false:suggestion
+csharp_style_allow_blank_lines_between_consecutive_braces_experimental = false:suggestion
+csharp_style_allow_blank_line_after_colon_in_constructor_initializer_experimental = false:suggestion
+csharp_style_allow_blank_line_after_token_in_conditional_expression_experimental = false:suggestion
+csharp_style_allow_embedded_statements_on_same_line_experimental = false:suggestion
+
 # Indentation preferences
 csharp_indent_block_contents = true
 csharp_indent_braces = false
@@ -89,6 +97,7 @@ dotnet_naming_style.camel_case_underscore_style.capitalization = camel_case
 # Code style defaults
 csharp_using_directive_placement = outside_namespace:suggestion
 dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = true
 csharp_style_namespace_declarations=file_scoped:suggestion
 csharp_prefer_braces = true:silent
 csharp_preserve_single_line_blocks = true:none

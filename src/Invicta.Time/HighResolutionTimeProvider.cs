@@ -1,6 +1,7 @@
 // © 2026 Andrew Pollard. All rights reserved.
 
 using System.Runtime.Versioning;
+
 using Invicta.Threading;
 
 namespace Invicta;
@@ -28,9 +29,7 @@ namespace Invicta;
 [SupportedOSPlatform("windows10.0.17134")]
 public sealed class HighResolutionTimeProvider : TimeProvider
 {
-    private HighResolutionTimeProvider()
-    {
-    }
+    private HighResolutionTimeProvider() { }
 
     /// <summary>Gets the shared <see cref="HighResolutionTimeProvider"/> instance.</summary>
     public static HighResolutionTimeProvider Instance { get; } = new();
@@ -49,6 +48,7 @@ public sealed class HighResolutionTimeProvider : TimeProvider
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         ArgumentNullException.ThrowIfNull(callback);
+
         if (!IsSupported)
         {
             throw new PlatformNotSupportedException(

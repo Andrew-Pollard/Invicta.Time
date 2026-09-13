@@ -1,6 +1,7 @@
 // © 2026 Andrew Pollard. All rights reserved.
 
 using System.Runtime.InteropServices;
+
 using Microsoft.Win32.SafeHandles;
 
 namespace Invicta;
@@ -13,8 +14,10 @@ namespace Invicta;
 internal static partial class Kernel32
 {
     internal const uint CREATE_WAITABLE_TIMER_HIGH_RESOLUTION = 0x00000002;
+
     internal const uint TIMER_MODIFY_STATE = 0x0002;
     internal const uint SYNCHRONIZE = 0x00100000;
+
     internal const uint INFINITE = 0xFFFFFFFF;
     internal const uint WAIT_FAILED = 0xFFFFFFFF;
 

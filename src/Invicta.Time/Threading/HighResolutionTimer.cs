@@ -29,6 +29,7 @@ internal sealed class HighResolutionTimer : ITimer
 
         TimerEntry entry = new(callback, state, ExecutionContext.Capture());
         entry.Change(due, per);
+
         return new HighResolutionTimer(entry);
     }
 
@@ -47,6 +48,7 @@ internal sealed class HighResolutionTimer : ITimer
     public ValueTask DisposeAsync()
     {
         GC.SuppressFinalize(this);
+
         return _entry.CloseAsync();
     }
 }
@@ -77,9 +79,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
 
     // Guarded by TimerScheduler's lock.
     internal long DueTimestamp { get; set; }
-
     internal long PeriodTicks { get; set; }
-
     internal int HeapIndex { get; set; } = -1;
 
     /// <summary>Converts to <see cref="Stopwatch"/> ticks; -1 means infinite.</summary>
@@ -130,6 +130,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
         lock (_lock)
         {
             CloseCore();
+
             if (_callbacksRunning == 0)
             {
                 return default;

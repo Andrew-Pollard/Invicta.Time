@@ -33,6 +33,7 @@ public class TimerBenchmarks
     }
 
     private PeriodicTimer? _periodicTimer;
+
     private ITimer? _timer;
     private SemaphoreSlim? _timerTickedSemaphore;
 

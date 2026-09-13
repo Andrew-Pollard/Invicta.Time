@@ -43,9 +43,10 @@ internal static class Program
     /// <returns>One elapsed time in milliseconds per sample.</returns>
     private static async Task<double[]> MeasureDelays(TimeProvider provider, TimeSpan interval, int count)
     {
-        double[] samples = new double[count];
-        await Task.Delay(interval, provider); // warm up the provider and JIT the path
+        // Warm up the provider and JIT the path.
+        await Task.Delay(interval, provider);
 
+        double[] samples = new double[count];
         for (int i = 0; i < count; i++)
         {
             long start = Stopwatch.GetTimestamp();
@@ -65,11 +66,11 @@ internal static class Program
 
         await timer.WaitForNextTickAsync();
         long last = Stopwatch.GetTimestamp();
-
         for (int i = 0; i < count; i++)
         {
             await timer.WaitForNextTickAsync();
             long now = Stopwatch.GetTimestamp();
+
             samples[i] = Stopwatch.GetElapsedTime(last, now).TotalMilliseconds;
             last = now;
         }

@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+
 using NUnit.Framework;
 
 // Latency assertions are unreliable when tests compete for the thread pool, so never run tests in parallel.
@@ -50,6 +51,7 @@ internal sealed class HighResolutionTimeProviderTests
         }
 
         Array.Sort(samples);
+
         using (Assert.EnterMultipleScope())
         {
             Assert.That(samples[0], Is.GreaterThanOrEqualTo(1.0), "Minimum delay (ms); below 1 is early");
@@ -103,12 +105,13 @@ internal sealed class HighResolutionTimeProviderTests
     public async Task ManyTimers_EachFiresOnceAndNotEarly()
     {
         const int TimerCount = 500;
-        Random random = new(42);
+
         int early = 0;
         int remaining = TimerCount;
         TaskCompletionSource done = new();
-        ITimer[] timers = new ITimer[TimerCount];
 
+        Random random = new(42);
+        ITimer[] timers = new ITimer[TimerCount];
         for (int i = 0; i < TimerCount; i++)
         {
             TimeSpan due = TimeSpan.FromTicks(random.Next(0, 200_000)); // 0-20 ms

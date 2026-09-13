@@ -20,6 +20,7 @@ internal sealed class TimerHeapTests
                 TimerEntry victim = live[random.Next(live.Count)];
                 heap.Remove(victim);
                 live.Remove(victim);
+
                 Assert.That(victim.HeapIndex, Is.EqualTo(-1));
             }
             else
@@ -48,6 +49,7 @@ internal sealed class TimerHeapTests
     {
         TimerHeap heap = new();
         heap.Remove(new TimerEntry(_ => { }, null, null));
+
         Assert.That(heap.Count, Is.Zero);
     }
 }

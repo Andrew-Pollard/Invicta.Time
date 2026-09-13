@@ -28,6 +28,7 @@ internal sealed class TimerHeap
         _items[Count] = entry;
         entry.HeapIndex = Count;
         Count++;
+
         SiftUp(entry.HeapIndex);
     }
 
@@ -52,6 +53,7 @@ internal sealed class TimerHeap
             TimerEntry last = _items[Count];
             _items[index] = last;
             last.HeapIndex = index;
+
             if (index > 0 && last.DueTimestamp < _items[(index - 1) / 2].DueTimestamp)
             {
                 SiftUp(index);

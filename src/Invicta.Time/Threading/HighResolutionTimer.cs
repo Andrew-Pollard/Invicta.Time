@@ -96,7 +96,7 @@ internal sealed class HighResolutionTimer : ITimer
             throw new ArgumentOutOfRangeException(
                 paramName,
                 value,
-                "The value must be Timeout.InfiniteTimeSpan or between 0 and 4294967294 milliseconds.");
+                $"The value must be Timeout.InfiniteTimeSpan or between 0 and {MaxSupportedTimeoutMs} milliseconds.");
         }
     }
 }

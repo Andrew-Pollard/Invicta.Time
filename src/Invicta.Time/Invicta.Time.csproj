@@ -25,6 +25,9 @@
     <PackageProjectUrl>https://github.com/Andrew-Pollard/Invicta.Time</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Andrew-Pollard/Invicta.Time</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnablePackageValidation>true</EnablePackageValidation>
   </PropertyGroup>
 
   <ItemGroup>

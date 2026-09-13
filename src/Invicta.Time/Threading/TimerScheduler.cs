@@ -24,6 +24,11 @@ namespace Invicta.Threading;
 internal sealed class TimerScheduler
 {
     /// <summary>Gets the scheduler, creating it on first use.</summary>
+    /// <remarks>
+    /// If the kernel timer cannot be created, every use of this property rethrows that first exception, as
+    /// <see cref="Lazy{T}"/> does. Creation only fails if the system is out of resources.
+    /// </remarks>
+    /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
     public static TimerScheduler Instance => s_instance.Value;
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
 
@@ -69,13 +74,15 @@ internal sealed class TimerScheduler
                 return;
             }
 
-            entry.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
-            AddAtDueTime(entry, GetCurrentTime() + dueTime);
-
-            if (entry.DueTime < _armedDueTime)
+            // Arm first, so that if arming fails the entry keeps its previous schedule.
+            TimeSpan entryDueTime = GetCurrentTime() + dueTime;
+            if (entryDueTime < _armedDueTime)
             {
-                Arm(entry.DueTime);
+                Arm(entryDueTime);
             }
+
+            entry.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
+            AddAtDueTime(entry, entryDueTime);
         }
     }
 
@@ -143,7 +150,12 @@ internal sealed class TimerScheduler
 
     /// <summary>Gets the time elapsed since the scheduler started, which due times are measured against.</summary>
     /// <returns>The current time on the scheduler's clock.</returns>
-    private TimeSpan GetCurrentTime() => Stopwatch.GetElapsedTime(_startTimestamp);
+    private TimeSpan GetCurrentTime()
+    {
+        // GetElapsedTime converts through a double, so where Stopwatch.Frequency is not TimeSpan.TicksPerSecond the
+        // result can be a 100 ns tick out. That is negligible next to the kernel timer's steps of roughly 0.5 ms.
+        return Stopwatch.GetElapsedTime(_startTimestamp);
+    }
 
     /// <summary>
     /// Sets an entry's due time and adds it to the schedule. The entry is removed from the schedule first, because
@@ -183,7 +195,11 @@ internal sealed class TimerScheduler
     /// The scheduler thread's loop: waits for the kernel timer, queues the callbacks of every entry that is due, and
     /// re-arms the kernel timer for the next entry.
     /// </summary>
-    /// <exception cref="Win32Exception">The wait for the kernel timer failed.</exception>
+    /// <remarks>
+    /// An exception here goes unhandled on the scheduler thread and ends the process, deliberately: without the
+    /// scheduler thread, no timer would ever fire again.
+    /// </remarks>
+    /// <exception cref="Win32Exception">The kernel timer could not be waited on or re-armed.</exception>
     private void Run()
     {
         while (true)

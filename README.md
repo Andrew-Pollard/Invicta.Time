@@ -46,7 +46,8 @@ resolution, so they are inherited unchanged.
 
 - **One kernel object:** a single waitable timer and one scheduler thread serve every `ITimer`.
 - **Sorted set:** pending timers are kept in a `SortedSet`, so creating, changing and cancelling a timer are all
-  O(log n).
+  O(log n). Each schedule, including each tick of a periodic timer, allocates about 50 bytes; a 1 ms periodic timer
+  allocates about 50 KB a second.
 - **Armed for the earliest deadline:** a thread scheduling a sooner timer re-arms the kernel timer itself, so no
   wake-up event is needed.
 - **Thread pool callbacks:** queued as `System.Threading.Timer` does, so a starved pool still delays them.

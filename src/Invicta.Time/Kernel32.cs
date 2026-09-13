@@ -12,13 +12,13 @@ namespace Invicta;
     Justification = "Names follow the Win32 headers, per the .NET native interoperability best practices.")]
 internal static partial class Kernel32
 {
-    internal const uint CREATE_WAITABLE_TIMER_HIGH_RESOLUTION = 0x00000002;
+    public const uint CREATE_WAITABLE_TIMER_HIGH_RESOLUTION = 0x00000002;
 
-    internal const uint TIMER_MODIFY_STATE = 0x0002;
-    internal const uint SYNCHRONIZE = 0x00100000;
+    public const uint TIMER_MODIFY_STATE = 0x0002;
+    public const uint SYNCHRONIZE = 0x00100000;
 
-    internal const uint INFINITE = 0xFFFFFFFF;
-    internal const uint WAIT_FAILED = 0xFFFFFFFF;
+    public const uint INFINITE = 0xFFFFFFFF;
+    public const uint WAIT_FAILED = 0xFFFFFFFF;
 
     /// <summary>Creates or opens a waitable timer object.</summary>
     /// <param name="lpTimerAttributes">
@@ -33,7 +33,7 @@ internal static partial class Kernel32
     /// <seealso href="https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-createwaitabletimerexw"/>
     [LibraryImport(nameof(Kernel32), SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    internal static partial SafeWaitHandle CreateWaitableTimerExW(
+    public static partial SafeWaitHandle CreateWaitableTimerExW(
         nint lpTimerAttributes,
         string? lpTimerName,
         uint dwFlags,
@@ -55,7 +55,7 @@ internal static partial class Kernel32
     /// <seealso href="https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-setwaitabletimer"/>
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    internal static partial int SetWaitableTimer(
+    public static partial int SetWaitableTimer(
         SafeWaitHandle hTimer,
         in long lpDueTime,
         int lPeriod,
@@ -70,5 +70,5 @@ internal static partial class Kernel32
     /// <seealso href="https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject"/>
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    internal static partial uint WaitForSingleObject(SafeWaitHandle hHandle, uint dwMilliseconds);
+    public static partial uint WaitForSingleObject(SafeWaitHandle hHandle, uint dwMilliseconds);
 }

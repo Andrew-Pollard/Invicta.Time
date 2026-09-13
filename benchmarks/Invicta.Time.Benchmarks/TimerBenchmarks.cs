@@ -43,7 +43,7 @@ public class TimerBenchmarks
     /// <summary>
     /// The desired duration of the delay for each benchmark.
     /// </summary>
-    public static TimeSpan DesiredDuration { get; } = TimeSpan.FromMilliseconds(1);
+    private static TimeSpan DesiredDuration { get; } = TimeSpan.FromMilliseconds(1);
 
     /// <summary>
     /// The <see cref="Invicta.NamedTimeProvider"/>s to benchmark.

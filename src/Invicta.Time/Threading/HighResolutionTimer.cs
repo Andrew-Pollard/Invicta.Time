@@ -9,7 +9,7 @@ namespace Invicta.Threading;
 
 /// <summary>
 /// Represents a scheduled timer, and is the <see cref="ITimer"/> handed to callers. Scheduling state is guarded by
-/// the <see cref="TimerScheduler"/> lock; lifetime state by the entry's own lock.
+/// the <see cref="TimerScheduler"/> lock; lifetime state by the timer's own lock.
 /// </summary>
 /// <param name="callback">The method to invoke each time the timer fires.</param>
 /// <param name="state">The object to pass to <paramref name="callback"/>.</param>
@@ -18,20 +18,20 @@ namespace Invicta.Threading;
 /// the thread pool thread has.
 /// </param>
 [SupportedOSPlatform("windows10.0.17134")]
-internal sealed class TimerEntry(TimerCallback callback, object? state, ExecutionContext? executionContext)
+internal sealed class HighResolutionTimer(TimerCallback callback, object? state, ExecutionContext? executionContext)
     : ITimer, IThreadPoolWorkItem
 {
     // Matches System.Threading.Timer's upper bound (0xFFFFFFFE ms, ~49.7 days).
     private const long MaxSupportedTimeoutMs = 0xFFFFFFFE;
 
-    private static readonly ContextCallback s_invokeCallback = static s => ((TimerEntry)s!).InvokeCallback();
+    private static readonly ContextCallback s_invokeCallback = static s => ((HighResolutionTimer)s!).InvokeCallback();
 
     private static long s_lastId;
 
     private readonly TimerCallback _callback = callback;
     private readonly object? _state = state;
     [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
-        Justification = "The entry doesn't own the captured context, and ExecutionContext.Dispose does nothing.")]
+        Justification = "The timer doesn't own the captured context, and ExecutionContext.Dispose does nothing.")]
     private readonly ExecutionContext? _executionContext = executionContext;
 
     private readonly Lock _lock = new();
@@ -41,16 +41,16 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     private int _callbacksRunning;
     private TaskCompletionSource? _closeCompletion;
 
-    /// <summary>Gets a number that uniquely identifies this entry.</summary>
+    /// <summary>Gets a number that uniquely identifies this timer.</summary>
     /// <remarks>
-    /// The scheduler uses it to distinguish entries that are due at the same time, so that its sorted set does not
+    /// The scheduler uses it to distinguish timers that are due at the same time, so that its sorted set does not
     /// treat them as duplicates.
     /// </remarks>
     internal long Id { get; } = Interlocked.Increment(ref s_lastId);
 
     /// <summary>Gets or sets when the timer is next due, on the <see cref="TimerScheduler"/>'s clock.</summary>
     /// <remarks>
-    /// Guarded by the <see cref="TimerScheduler"/> lock. Only the scheduler changes it, and it removes the entry from
+    /// Guarded by the <see cref="TimerScheduler"/> lock. Only the scheduler changes it, and it removes the timer from
     /// its sorted set first, because the set is ordered by this value.
     /// </remarks>
     internal TimeSpan DueTime { get; set; }

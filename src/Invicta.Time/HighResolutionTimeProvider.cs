@@ -49,7 +49,7 @@ public sealed class HighResolutionTimeProvider : TimeProvider
                 "High-resolution waitable timers require Windows 10 version 1803 or later.");
         }
 
-        TimerEntry timer = new(callback, state, ExecutionContext.Capture());
+        HighResolutionTimer timer = new(callback, state, ExecutionContext.Capture());
         timer.Change(dueTime, period);
 
         return timer;

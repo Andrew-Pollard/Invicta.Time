@@ -33,7 +33,8 @@ internal sealed class TimerScheduler
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
 
     private readonly Lock _lock = new();
-    private readonly SortedSet<TimerEntry> _scheduled = new(Comparer<TimerEntry>.Create(CompareDueTimes));
+    private readonly SortedSet<HighResolutionTimer> _scheduled =
+        new(Comparer<HighResolutionTimer>.Create(CompareDueTimes));
 
     // Due times are measured from this Stopwatch timestamp.
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
@@ -56,58 +57,58 @@ internal sealed class TimerScheduler
         }.Start();
     }
 
-    /// <summary>Schedules an entry with a new due time and period, replacing any schedule it already has.</summary>
-    /// <param name="entry">The entry to schedule.</param>
+    /// <summary>Schedules a timer with a new due time and period, replacing any schedule it already has.</summary>
+    /// <param name="timer">The timer to schedule.</param>
     /// <param name="dueTime">
     /// The delay before the first callback, or <see cref="Timeout.InfiniteTimeSpan"/> to leave the timer stopped.
     /// </param>
     /// <param name="period">
     /// The interval between callbacks, or <see cref="Timeout.InfiniteTimeSpan"/> or zero for a one-shot timer.
     /// </param>
-    public void Schedule(TimerEntry entry, TimeSpan dueTime, TimeSpan period)
+    public void Schedule(HighResolutionTimer timer, TimeSpan dueTime, TimeSpan period)
     {
         lock (_lock)
         {
             if (dueTime == Timeout.InfiniteTimeSpan)
             {
-                _scheduled.Remove(entry);
+                _scheduled.Remove(timer);
                 return;
             }
 
-            // Arm first, so that if arming fails the entry keeps its previous schedule.
-            TimeSpan entryDueTime = GetCurrentTime() + dueTime;
-            if (entryDueTime < _armedDueTime)
+            // Arm first, so that if arming fails the timer keeps its previous schedule.
+            TimeSpan timerDueTime = GetCurrentTime() + dueTime;
+            if (timerDueTime < _armedDueTime)
             {
-                Arm(entryDueTime);
+                Arm(timerDueTime);
             }
 
-            entry.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
-            AddAtDueTime(entry, entryDueTime);
+            timer.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
+            AddAtDueTime(timer, timerDueTime);
         }
     }
 
-    /// <summary>Removes an entry from the schedule, so that it no longer fires.</summary>
-    /// <param name="entry">The entry to remove.</param>
-    public void Unschedule(TimerEntry entry)
+    /// <summary>Removes a timer from the schedule, so that it no longer fires.</summary>
+    /// <param name="timer">The timer to remove.</param>
+    public void Unschedule(HighResolutionTimer timer)
     {
         // The kernel timer is left armed; a spurious wake-up just finds nothing due and re-arms.
         lock (_lock)
         {
-            _scheduled.Remove(entry);
+            _scheduled.Remove(timer);
         }
     }
 
     /// <summary>
-    /// Orders entries by due time, breaking ties with <see cref="TimerEntry.Id"/> so that different entries never
-    /// compare as equal. <see cref="SortedSet{T}"/> treats entries that compare as equal as duplicates, which would
-    /// drop a timer that is due at the same time as another.
+    /// Orders timers by due time, breaking ties with <see cref="HighResolutionTimer.Id"/> so that different timers
+    /// never compare as equal. <see cref="SortedSet{T}"/> treats timers that compare as equal as duplicates, which
+    /// would drop a timer that is due at the same time as another.
     /// </summary>
-    /// <param name="x">The first entry.</param>
-    /// <param name="y">The second entry.</param>
+    /// <param name="x">The first timer.</param>
+    /// <param name="y">The second timer.</param>
     /// <returns>
     /// A negative number if <paramref name="x"/> is due first, or a positive number if it is due later.
     /// </returns>
-    internal static int CompareDueTimes(TimerEntry x, TimerEntry y)
+    internal static int CompareDueTimes(HighResolutionTimer x, HighResolutionTimer y)
     {
         int byDueTime = x.DueTime.CompareTo(y.DueTime);
 
@@ -130,7 +131,7 @@ internal sealed class TimerScheduler
         return nextDueTime > now ? nextDueTime : now + period;
     }
 
-    /// <summary>Creates the high-resolution kernel timer that every entry shares.</summary>
+    /// <summary>Creates the high-resolution kernel timer that every <see cref="HighResolutionTimer"/> shares.</summary>
     /// <returns>A handle to the timer.</returns>
     /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
     private static SafeWaitHandle CreateKernelTimer()
@@ -159,18 +160,18 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>
-    /// Sets an entry's due time and adds it to the schedule. The entry is removed from the schedule first, because
-    /// the sorted set is ordered by due time and would be corrupted if it changed while the entry was in it.
+    /// Sets a timer's due time and adds it to the schedule. The timer is removed from the schedule first, because
+    /// the sorted set is ordered by due time and would be corrupted if it changed while the timer was in it.
     /// </summary>
-    /// <param name="entry">The entry to add.</param>
-    /// <param name="dueTime">The time the entry is due, on the scheduler's clock.</param>
+    /// <param name="timer">The timer to add.</param>
+    /// <param name="dueTime">The time the timer is due, on the scheduler's clock.</param>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    private void AddAtDueTime(TimerEntry entry, TimeSpan dueTime)
+    private void AddAtDueTime(HighResolutionTimer timer, TimeSpan dueTime)
     {
-        _scheduled.Remove(entry);
+        _scheduled.Remove(timer);
 
-        entry.DueTime = dueTime;
-        _scheduled.Add(entry);
+        timer.DueTime = dueTime;
+        _scheduled.Add(timer);
     }
 
     /// <summary>Arms the kernel timer to signal at a due time.</summary>
@@ -193,8 +194,8 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>
-    /// The scheduler thread's loop: waits for the kernel timer, queues the callbacks of every entry that is due, and
-    /// re-arms the kernel timer for the next entry.
+    /// The scheduler thread's loop: waits for the kernel timer, queues the callbacks of every timer that is due, and
+    /// re-arms the kernel timer for the next one.
     /// </summary>
     /// <remarks>
     /// An exception here goes unhandled on the scheduler thread and ends the process, deliberately: without the
@@ -212,7 +213,7 @@ internal sealed class TimerScheduler
                 _armedDueTime = TimeSpan.MaxValue;
 
                 QueueDueCallbacks();
-                ArmForEarliestEntry();
+                ArmForEarliestTimer();
             }
         }
     }
@@ -228,30 +229,30 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>
-    /// Queues the callback of every entry that is due to the thread pool, and reschedules the periodic ones.
+    /// Queues the callback of every timer that is due to the thread pool, and reschedules the periodic ones.
     /// </summary>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
     private void QueueDueCallbacks()
     {
         TimeSpan now = GetCurrentTime();
-        while (_scheduled.Min is { } entry && entry.DueTime <= now)
+        while (_scheduled.Min is { } timer && timer.DueTime <= now)
         {
-            if (entry.Period > TimeSpan.Zero)
+            if (timer.Period > TimeSpan.Zero)
             {
-                AddAtDueTime(entry, GetNextDueTime(entry.DueTime, entry.Period, now));
+                AddAtDueTime(timer, GetNextDueTime(timer.DueTime, timer.Period, now));
             }
             else
             {
-                _scheduled.Remove(entry);
+                _scheduled.Remove(timer);
             }
 
-            ThreadPool.UnsafeQueueUserWorkItem(entry, preferLocal: false);
+            ThreadPool.UnsafeQueueUserWorkItem(timer, preferLocal: false);
         }
     }
 
-    /// <summary>Arms the kernel timer for the entry that is due soonest, if there is one.</summary>
+    /// <summary>Arms the kernel timer for whichever timer is due soonest, if there is one.</summary>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    private void ArmForEarliestEntry()
+    private void ArmForEarliestTimer()
     {
         if (_scheduled.Min is { } earliest)
         {

@@ -11,7 +11,7 @@ using static Invicta.TimeProviderFixtures;
 namespace Invicta.Threading;
 
 [TestFixtureSource(typeof(TimeProviderFixtures), nameof(TimeProviderFixtures.Providers))]
-internal sealed class TimerEntryTests(TimeProvider provider)
+internal sealed class HighResolutionTimerTests(TimeProvider provider)
 {
     private readonly TimeProvider _provider = provider;
 

@@ -13,8 +13,8 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void CompareDueTimes_DifferentDueTimes_OrdersByDueTime()
     {
-        using TimerEntry later = NewEntry(s_later);
-        using TimerEntry earlier = NewEntry(s_earlier);
+        using HighResolutionTimer later = NewTimer(s_later);
+        using HighResolutionTimer earlier = NewTimer(s_earlier);
 
         using (Assert.EnterMultipleScope())
         {
@@ -26,8 +26,8 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void CompareDueTimes_SameDueTime_IsNotEqual()
     {
-        using TimerEntry first = NewEntry(s_earlier);
-        using TimerEntry second = NewEntry(s_earlier);
+        using HighResolutionTimer first = NewTimer(s_earlier);
+        using HighResolutionTimer second = NewTimer(s_earlier);
 
         int firstToSecond = TimerScheduler.CompareDueTimes(first, second);
         int secondToFirst = TimerScheduler.CompareDueTimes(second, first);
@@ -40,28 +40,29 @@ internal sealed class TimerSchedulerTests
     }
 
     [Test]
-    public void CompareDueTimes_SameEntry_IsZero()
+    public void CompareDueTimes_SameTimer_IsZero()
     {
-        using TimerEntry entry = NewEntry(s_earlier);
+        using HighResolutionTimer timer = NewTimer(s_earlier);
 
-        Assert.That(TimerScheduler.CompareDueTimes(entry, entry), Is.Zero);
+        Assert.That(TimerScheduler.CompareDueTimes(timer, timer), Is.Zero);
     }
 
     [Test]
-    public void CompareDueTimes_InSortedSetWithSameDueTimes_KeepsAllEntries()
+    public void CompareDueTimes_InSortedSetWithSameDueTimes_KeepsAllTimers()
     {
-        using TimerEntry first = NewEntry(s_earlier);
-        using TimerEntry second = NewEntry(s_earlier);
-        using TimerEntry third = NewEntry(s_earlier);
-        TimerEntry[] entries = [first, second, third];
+        using HighResolutionTimer first = NewTimer(s_earlier);
+        using HighResolutionTimer second = NewTimer(s_earlier);
+        using HighResolutionTimer third = NewTimer(s_earlier);
+        HighResolutionTimer[] timers = [first, second, third];
 
-        SortedSet<TimerEntry> scheduled = new(Comparer<TimerEntry>.Create(TimerScheduler.CompareDueTimes));
-        foreach (TimerEntry entry in entries)
+        SortedSet<HighResolutionTimer> scheduled = new(
+            Comparer<HighResolutionTimer>.Create(TimerScheduler.CompareDueTimes));
+        foreach (HighResolutionTimer timer in timers)
         {
-            scheduled.Add(entry);
+            scheduled.Add(timer);
         }
 
-        Assert.That(scheduled, Is.EquivalentTo(entries));
+        Assert.That(scheduled, Is.EquivalentTo(timers));
     }
 
     [Test]
@@ -100,6 +101,6 @@ internal sealed class TimerSchedulerTests
         Assert.That(nextDueTime, Is.EqualTo(TimeSpan.FromMilliseconds(147)));
     }
 
-    private static TimerEntry NewEntry(TimeSpan dueTime) =>
+    private static HighResolutionTimer NewTimer(TimeSpan dueTime) =>
         new(static _ => { }, null, null) { DueTime = dueTime };
 }

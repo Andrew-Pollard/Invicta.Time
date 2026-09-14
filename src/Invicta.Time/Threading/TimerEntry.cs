@@ -1,13 +1,15 @@
 // © 2026 Andrew Pollard. All rights reserved.
 // Licensed under the MIT License.
 
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 
 namespace Invicta.Threading;
 
 /// <summary>
-/// Represents a scheduled timer. Scheduling state is guarded by the <see cref="TimerScheduler"/> lock; lifetime
-/// state by the entry's own lock.
+/// Represents a scheduled timer, and is the <see cref="ITimer"/> handed to callers. Scheduling state is guarded by
+/// the <see cref="TimerScheduler"/> lock; lifetime state by the entry's own lock.
 /// </summary>
 /// <param name="callback">The method to invoke each time the timer fires.</param>
 /// <param name="state">The object to pass to <paramref name="callback"/>.</param>
@@ -17,14 +19,19 @@ namespace Invicta.Threading;
 /// </param>
 [SupportedOSPlatform("windows10.0.17134")]
 internal sealed class TimerEntry(TimerCallback callback, object? state, ExecutionContext? executionContext)
-    : IThreadPoolWorkItem
+    : ITimer, IThreadPoolWorkItem
 {
+    // Matches System.Threading.Timer's upper bound (0xFFFFFFFE ms, ~49.7 days).
+    private const long MaxSupportedTimeoutMs = 0xFFFFFFFE;
+
     private static readonly ContextCallback s_invokeCallback = static s => ((TimerEntry)s!).InvokeCallback();
 
     private static long s_lastId;
 
     private readonly TimerCallback _callback = callback;
     private readonly object? _state = state;
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
+        Justification = "The entry doesn't own the captured context, and ExecutionContext.Dispose does nothing.")]
     private readonly ExecutionContext? _executionContext = executionContext;
 
     private readonly Lock _lock = new();
@@ -54,18 +61,16 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     /// <remarks>Guarded by the <see cref="TimerScheduler"/> lock.</remarks>
     internal TimeSpan Period { get; set; }
 
-    /// <summary>Reschedules the timer, unless it has been closed.</summary>
-    /// <param name="dueTime">
-    /// The delay before the first callback, or <see cref="Timeout.InfiniteTimeSpan"/> to stop the timer.
-    /// </param>
-    /// <param name="period">
-    /// The interval between callbacks, or <see cref="Timeout.InfiniteTimeSpan"/> or zero for a one-shot timer.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> if the timer was rescheduled; <see langword="false"/> if it has been closed.
-    /// </returns>
+    /// <inheritdoc/>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="dueTime"/> or <paramref name="period"/> is negative and not
+    /// <see cref="Timeout.InfiniteTimeSpan"/>, or is longer than 4294967294 milliseconds.
+    /// </exception>
     public bool Change(TimeSpan dueTime, TimeSpan period)
     {
+        ThrowIfInvalidTimeout(dueTime);
+        ThrowIfInvalidTimeout(period);
+
         lock (_lock)
         {
             if (_closed)
@@ -82,21 +87,21 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     /// Stops the timer. Callbacks that are queued but have not started are skipped; callbacks already running are
     /// not waited for.
     /// </summary>
-    public void Close()
+    public void Dispose()
     {
         lock (_lock)
         {
-            CloseCore();
+            DisposeCore();
         }
     }
 
-    /// <summary>Stops the timer, as <see cref="Close"/> does.</summary>
+    /// <summary>Stops the timer, as <see cref="Dispose"/> does.</summary>
     /// <returns>A task that completes once any callbacks already running have finished.</returns>
-    public ValueTask CloseAsync()
+    public ValueTask DisposeAsync()
     {
         lock (_lock)
         {
-            CloseCore();
+            DisposeCore();
 
             if (_callbacksRunning == 0)
             {
@@ -108,9 +113,34 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
         }
     }
 
+    /// <summary>
+    /// Throws if a due time or period is outside the range that <see cref="System.Threading.Timer"/> accepts.
+    /// </summary>
+    /// <param name="value">The due time or period.</param>
+    /// <param name="paramName">The name of the argument that <paramref name="value"/> came from.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="value"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>, or is longer than
+    /// 4294967294 milliseconds.
+    /// </exception>
+    private static void ThrowIfInvalidTimeout(
+        TimeSpan value,
+        [CallerArgumentExpression(nameof(value))] string? paramName = null)
+    {
+        bool isNegative = value < TimeSpan.Zero && value != Timeout.InfiniteTimeSpan;
+        bool isTooLong = (long)value.TotalMilliseconds > MaxSupportedTimeoutMs;
+
+        if (isNegative || isTooLong)
+        {
+            throw new ArgumentOutOfRangeException(
+                paramName,
+                value,
+                $"The value must be Timeout.InfiniteTimeSpan or between 0 and {MaxSupportedTimeoutMs} milliseconds.");
+        }
+    }
+
     /// <summary>Marks the timer closed and removes it from the scheduler, if it is not already closed.</summary>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    private void CloseCore()
+    private void DisposeCore()
     {
         if (!_closed)
         {
@@ -145,7 +175,7 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     {
         lock (_lock)
         {
-            // A callback queued just before Close() is skipped rather than run after disposal.
+            // A callback queued just before Dispose() is skipped rather than run after disposal.
             if (_closed)
             {
                 return false;
@@ -170,8 +200,8 @@ internal sealed class TimerEntry(TimerCallback callback, object? state, Executio
     }
 
     /// <summary>
-    /// Records that a callback has finished, and completes <see cref="CloseAsync"/> if it was the last one running
-    /// after the timer was closed.
+    /// Records that a callback has finished, and completes <see cref="DisposeAsync"/> if it was the last one running
+    /// after the timer was disposed.
     /// </summary>
     private void EndCallback()
     {

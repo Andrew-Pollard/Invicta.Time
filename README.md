@@ -73,12 +73,7 @@ resolution, so they are inherited unchanged.
   allocates about 50 KB a second.
 - **Armed for the earliest deadline:** a thread scheduling a sooner timer re-arms the kernel timer itself, so no
   wake-up event is needed.
-- **Thread pool callbacks:** queued as `System.Threading.Timer` does, so a starved pool still delays them.
 - **Drift-free periods:** missed ticks are skipped rather than fired as a burst.
-
-Behaviour otherwise matches `TimeProvider.System`: `ExecutionContext` flows unless suppressed, callbacks can
-overlap, `Change` returns `false` after disposal, `DisposeAsync` waits for running callbacks, and a timer that
-is no longer referenced is collected and stops.
 
 ## Caveats
 
@@ -90,7 +85,6 @@ is no longer referenced is collected and stops.
   such as 5.6 ms at 180 Hz. `HighResolutionTimeProvider` is unaffected, and because its timers leave the resolution
   alone, it does not disturb other processes either. The measurements are in
   [Invicta.TimerInvestigation][timerinvestigation].
-- **Thread pool pressure:** a starved pool delays callbacks, exactly as it does for the built-in timers.
 - **Unaffected APIs:** `Thread.Sleep`, and `Task.Delay(TimeSpan)` without a provider, keep the system tick.
 
 ## Licence

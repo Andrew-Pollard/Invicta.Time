@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 
 using NUnit.Framework;
 
@@ -11,6 +10,10 @@ using NUnit.Framework;
 
 namespace Invicta;
 
+/// <summary>
+/// Behavior specific to <see cref="HighResolutionTimeProvider"/>, such as its resolution, which
+/// <see cref="TimeProvider.System"/> does not share.
+/// </summary>
 internal sealed class HighResolutionTimeProviderTests
 {
     private static readonly TimeProvider s_provider = HighResolutionTimeProvider.Instance;
@@ -24,7 +27,8 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
-    public void IsSupported_OnThisMachine_IsTrue() => Assert.That(HighResolutionTimeProvider.IsSupported, Is.True);
+    public void IsSupported_OnThisMachine_IsTrue() =>
+        Assert.That(HighResolutionTimeProvider.IsSupported, Is.True);
 
     [Test]
     public void Instance_ReadTwice_ReturnsTheOnlyInstance()
@@ -94,7 +98,10 @@ internal sealed class HighResolutionTimeProviderTests
     {
         int count = 0;
         using ITimer timer = s_provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(1));
+            _ => Interlocked.Increment(ref count),
+            null,
+            TimeSpan.FromMilliseconds(1),
+            TimeSpan.FromMilliseconds(1));
 
         await Task.Delay(500);
         timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -172,31 +179,4 @@ internal sealed class HighResolutionTimeProviderTests
 
         Assert.That(Stopwatch.GetElapsedTime(start), Is.LessThan(TimeSpan.FromMilliseconds(100)));
     }
-
-    [Test]
-    public async Task CreateTimer_WhenUnreferenced_IsCollectedAndStops()
-    {
-        StrongBox<int> counter = new();
-        CreateAbandonedTimer(counter);
-
-        await Task.Delay(20);
-        Assert.That(Volatile.Read(ref counter.Value), Is.Positive);
-
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
-        await Task.Delay(20);
-
-        int afterCollect = Volatile.Read(ref counter.Value);
-        await Task.Delay(50);
-        Assert.That(Volatile.Read(ref counter.Value), Is.EqualTo(afterCollect));
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void CreateAbandonedTimer(StrongBox<int> counter) =>
-        s_provider.CreateTimer(
-            static s => Interlocked.Increment(ref ((StrongBox<int>)s!).Value),
-            counter,
-            TimeSpan.FromMilliseconds(1),
-            TimeSpan.FromMilliseconds(1));
 }

@@ -19,8 +19,7 @@ namespace Invicta;
 /// (<c>GetSystemTimePreciseAsFileTime</c> and <c>QueryPerformanceCounter</c>), so they're inherited unchanged.
 /// </para>
 /// <para>
-/// All timers share one dedicated scheduler thread and one kernel timer object. Callbacks run on the thread
-/// pool, like <see cref="System.Threading.Timer"/>, so a starved thread pool will still delay them.
+/// All timers share one dedicated scheduler thread and one kernel timer object.
 /// </para>
 /// <para>
 /// Requires Windows 10 version 1803 (build 17134) or later. Check <see cref="IsSupported"/> before using
@@ -40,12 +39,6 @@ public sealed class HighResolutionTimeProvider : TimeProvider
     public static bool IsSupported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17134);
 
     /// <inheritdoc/>
-    /// <remarks>
-    /// Semantics match <see cref="TimeProvider.System"/>: the current <see cref="ExecutionContext"/> is
-    /// captured unless flow is suppressed, callbacks can overlap if they run longer than
-    /// <paramref name="period"/>, and a timer that is no longer referenced can be garbage collected (which
-    /// stops it).
-    /// </remarks>
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         ArgumentNullException.ThrowIfNull(callback);
@@ -56,6 +49,9 @@ public sealed class HighResolutionTimeProvider : TimeProvider
                 "High-resolution waitable timers require Windows 10 version 1803 or later.");
         }
 
-        return HighResolutionTimer.Create(callback, state, dueTime, period);
+        TimerEntry timer = new(callback, state, ExecutionContext.Capture());
+        timer.Change(dueTime, period);
+
+        return timer;
     }
 }

@@ -13,8 +13,8 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void CompareDueTimes_DifferentDueTimes_OrdersByDueTime()
     {
-        TimerEntry later = NewEntry(s_later);
-        TimerEntry earlier = NewEntry(s_earlier);
+        using TimerEntry later = NewEntry(s_later);
+        using TimerEntry earlier = NewEntry(s_earlier);
 
         using (Assert.EnterMultipleScope())
         {
@@ -26,8 +26,8 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void CompareDueTimes_SameDueTime_IsNotEqual()
     {
-        TimerEntry first = NewEntry(s_earlier);
-        TimerEntry second = NewEntry(s_earlier);
+        using TimerEntry first = NewEntry(s_earlier);
+        using TimerEntry second = NewEntry(s_earlier);
 
         int firstToSecond = TimerScheduler.CompareDueTimes(first, second);
         int secondToFirst = TimerScheduler.CompareDueTimes(second, first);
@@ -42,7 +42,7 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void CompareDueTimes_SameEntry_IsZero()
     {
-        TimerEntry entry = NewEntry(s_earlier);
+        using TimerEntry entry = NewEntry(s_earlier);
 
         Assert.That(TimerScheduler.CompareDueTimes(entry, entry), Is.Zero);
     }
@@ -50,9 +50,12 @@ internal sealed class TimerSchedulerTests
     [Test]
     public void CompareDueTimes_InSortedSetWithSameDueTimes_KeepsAllEntries()
     {
-        TimerEntry[] entries = [.. Enumerable.Range(0, 5).Select(_ => NewEntry(s_earlier))];
-        SortedSet<TimerEntry> scheduled = new(Comparer<TimerEntry>.Create(TimerScheduler.CompareDueTimes));
+        using TimerEntry first = NewEntry(s_earlier);
+        using TimerEntry second = NewEntry(s_earlier);
+        using TimerEntry third = NewEntry(s_earlier);
+        TimerEntry[] entries = [first, second, third];
 
+        SortedSet<TimerEntry> scheduled = new(Comparer<TimerEntry>.Create(TimerScheduler.CompareDueTimes));
         foreach (TimerEntry entry in entries)
         {
             scheduled.Add(entry);

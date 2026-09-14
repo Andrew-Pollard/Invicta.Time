@@ -3,7 +3,7 @@
 
 namespace Invicta;
 
-/// <summary>The names of the NUnit categories that tests are grouped into.</summary>
+/// <summary>Defines the names of the NUnit categories that tests are grouped into.</summary>
 internal static class TestCategories
 {
     /// <summary>

@@ -4,8 +4,7 @@
 namespace Invicta;
 
 /// <summary>
-/// A named <see cref="TimeProvider"/>. The name will be shown in the benchmark
-/// output.
+/// Pairs a <see cref="TimeProvider"/> with the name that the benchmark output shows for it.
 /// </summary>
 /// <param name="Name">The name.</param>
 /// <param name="Provider">The time provider.</param>

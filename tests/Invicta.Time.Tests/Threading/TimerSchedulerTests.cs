@@ -48,7 +48,7 @@ internal sealed class TimerSchedulerTests
     }
 
     [Test]
-    public void SortedSet_EntriesWithSameDueTime_AreAllKept()
+    public void CompareDueTimes_InSortedSetWithSameDueTimes_KeepsAllEntries()
     {
         TimerEntry[] entries = [.. Enumerable.Range(0, 5).Select(_ => NewEntry(s_earlier))];
         SortedSet<TimerEntry> scheduled = new(Comparer<TimerEntry>.Create(TimerScheduler.CompareDueTimes));

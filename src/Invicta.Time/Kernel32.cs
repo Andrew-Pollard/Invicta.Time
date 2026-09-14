@@ -8,7 +8,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Invicta;
 
-/// <summary>P/Invoke declarations for kernel32.dll.</summary>
+/// <summary>Declares the kernel32.dll functions and constants that the library calls through P/Invoke.</summary>
 [SuppressMessage("Style", "IDE1006:Naming Styles",
     Justification = "Names follow the Win32 headers, per the .NET native interoperability best practices.")]
 internal static partial class Kernel32

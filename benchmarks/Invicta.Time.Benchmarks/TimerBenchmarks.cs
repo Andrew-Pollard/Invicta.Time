@@ -14,8 +14,8 @@ using Perfolizer.Mathematics.OutlierDetection;
 namespace Invicta;
 
 /// <summary>
-/// Benchmarks comparing <see cref="TimeProvider.System"/> and <see cref="HighResolutionTimeProvider.Instance"/>.
-/// Each benchmark requests 1 ms, as a delay, a due time or a period, and measures how long it actually takes.
+/// Compares <see cref="TimeProvider.System"/> with <see cref="HighResolutionTimeProvider.Instance"/>. Each benchmark
+/// requests 1 ms, as a delay, a due time or a period, and measures how long it actually takes.
 /// </summary>
 [Config(typeof(Config))]
 [Outliers(OutlierMode.DontRemove)]
@@ -24,12 +24,15 @@ namespace Invicta;
 public class TimerBenchmarks
 {
     /// <summary>
-    /// Adds the median, 95th percentile and maximum columns, and reports times in milliseconds.
+    /// Configures the statistics and time unit that the benchmark results are reported with.
     /// </summary>
     [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
         Justification = "Instantiated by BenchmarkDotNet via reflection.")]
     private sealed class Config : ManualConfig
     {
+        /// <summary>
+        /// Adds the median, 95th percentile and maximum columns, and reports times in milliseconds.
+        /// </summary>
         public Config()
         {
             AddColumn(StatisticColumn.Median, StatisticColumn.P95, StatisticColumn.Max);

@@ -27,7 +27,7 @@ internal sealed class HighResolutionTimeProviderTests
     public void IsSupported_OnThisMachine_IsTrue() => Assert.That(HighResolutionTimeProvider.IsSupported, Is.True);
 
     [Test]
-    public void Instance_IsSharedAndTheOnlyWayToGetOne()
+    public void Instance_ReadTwice_ReturnsTheOnlyInstance()
     {
         HighResolutionTimeProvider first = HighResolutionTimeProvider.Instance;
         HighResolutionTimeProvider second = HighResolutionTimeProvider.Instance;
@@ -62,7 +62,7 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
-    public async Task OneShot_FiresOnceAndNeverBeforeDueTime()
+    public async Task CreateTimer_OneShot_FiresOnceAndNeverBeforeDueTime()
     {
         int count = 0;
         TaskCompletionSource<TimeSpan> fired = new();
@@ -90,7 +90,7 @@ internal sealed class HighResolutionTimeProviderTests
 
     [Test]
     [Category(TestCategories.Timing)]
-    public async Task Periodic_OneMillisecond_FiresAtRoughlyOneKilohertz()
+    public async Task CreateTimer_OneMillisecondPeriod_FiresAtRoughlyOneKilohertz()
     {
         int count = 0;
         using ITimer timer = s_provider.CreateTimer(
@@ -105,7 +105,7 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
-    public async Task ManyTimers_EachFiresOnceAndNotEarly()
+    public async Task CreateTimer_ManyRandomDueTimes_EachFiresOnceAndNotEarly()
     {
         const int TimerCount = 500;
 
@@ -161,7 +161,7 @@ internal sealed class HighResolutionTimeProviderTests
 
     [Test]
     [Category(TestCategories.Timing)]
-    public async Task PeriodicTimer_WithProvider_Ticks()
+    public async Task WaitForNextTickAsync_OneMillisecondPeriod_TicksFarFasterThanSystemTick()
     {
         using PeriodicTimer periodic = new(TimeSpan.FromMilliseconds(1), s_provider);
         long start = Stopwatch.GetTimestamp();
@@ -174,7 +174,7 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
-    public async Task UnreferencedTimer_IsCollectedAndStops()
+    public async Task CreateTimer_WhenUnreferenced_IsCollectedAndStops()
     {
         StrongBox<int> counter = new();
         CreateAbandonedTimer(counter);

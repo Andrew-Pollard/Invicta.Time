@@ -6,8 +6,8 @@ using System.Runtime.Versioning;
 namespace Invicta.Threading;
 
 /// <summary>
-/// A scheduled timer. Scheduling state is guarded by the <see cref="TimerScheduler"/> lock; lifetime state by
-/// the entry's own lock.
+/// Represents a scheduled timer. Scheduling state is guarded by the <see cref="TimerScheduler"/> lock; lifetime
+/// state by the entry's own lock.
 /// </summary>
 /// <param name="callback">The method to invoke each time the timer fires.</param>
 /// <param name="state">The object to pass to <paramref name="callback"/>.</param>

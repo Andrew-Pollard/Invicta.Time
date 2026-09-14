@@ -13,14 +13,19 @@ namespace Invicta;
 /// </summary>
 internal static class Program
 {
+    /// <summary>The longest period, in milliseconds, that <see cref="PeriodicTimer"/> supports.</summary>
+    private const double MaxIntervalMs = 4294967294;
+
     /// <summary>Measures both providers and writes the samples to CSV.</summary>
     /// <param name="args">Optional sample count, interval in milliseconds, and output path.</param>
-    private static async Task Main(string[] args)
+    /// <returns>Zero on success, or 1 when the arguments are not valid.</returns>
+    private static async Task<int> Main(string[] args)
     {
-        int sampleCount = args.Length > 0 ? int.Parse(args[0], CultureInfo.InvariantCulture) : 500;
-        double intervalMs = args.Length > 1 ? double.Parse(args[1], CultureInfo.InvariantCulture) : 1;
-        string path = args.Length > 2 ? args[2] : "latency.csv";
-        TimeSpan interval = TimeSpan.FromMilliseconds(intervalMs);
+        if (!TryParseArguments(args, out int sampleCount, out TimeSpan interval, out string path))
+        {
+            PrintUsage();
+            return 1;
+        }
 
         (string Name, TimeProvider Provider)[] clocks =
         [
@@ -33,16 +38,51 @@ internal static class Program
 
         foreach ((string name, TimeProvider provider) in clocks)
         {
-            await WriteSamples(writer, name, "Task.Delay", await MeasureDelays(provider, interval, sampleCount));
-            await WriteSamples(writer, name, "PeriodicTimer", await MeasureTicks(provider, interval, sampleCount));
+            await WriteSamplesAsync(
+                writer, name, "Task.Delay", await MeasureDelaysAsync(provider, interval, sampleCount));
+            await WriteSamplesAsync(
+                writer, name, "PeriodicTimer", await MeasureTicksAsync(provider, interval, sampleCount));
         }
 
         Console.WriteLine($"Wrote {sampleCount * clocks.Length * 2} samples to {Path.GetFullPath(path)}");
+
+        return 0;
     }
+
+    /// <summary>Reads the optional arguments, using defaults for any that are not given.</summary>
+    /// <param name="args">The command-line arguments.</param>
+    /// <param name="sampleCount">The number of samples to take per scenario; 500 by default.</param>
+    /// <param name="interval">The delay and timer period to measure; 1 ms by default.</param>
+    /// <param name="path">The CSV file to write; latency.csv by default.</param>
+    /// <returns>
+    /// <see langword="true"/> if every argument given is valid; otherwise, <see langword="false"/>.
+    /// </returns>
+    private static bool TryParseArguments(string[] args, out int sampleCount, out TimeSpan interval, out string path)
+    {
+        sampleCount = 500;
+        double intervalMs = 1;
+        path = args.Length > 2 ? args[2] : "latency.csv";
+
+        bool isSampleCountValid = args.Length < 1
+            || (int.TryParse(args[0], NumberStyles.None, CultureInfo.InvariantCulture, out sampleCount)
+                && sampleCount > 0);
+
+        bool isIntervalValid = args.Length < 2
+            || (double.TryParse(args[1], NumberStyles.Float, CultureInfo.InvariantCulture, out intervalMs)
+                && intervalMs is > 0 and <= MaxIntervalMs);
+
+        interval = TimeSpan.FromMilliseconds(isIntervalValid ? intervalMs : 1);
+
+        return args.Length <= 3 && isSampleCountValid && isIntervalValid;
+    }
+
+    /// <summary>Prints how to run the sample.</summary>
+    private static void PrintUsage() =>
+        Console.Error.WriteLine("Usage: Invicta.Time.Samples [sample count] [interval in milliseconds] [output path]");
 
     /// <summary>Measures how long each <see cref="Task.Delay(TimeSpan, TimeProvider)"/> actually takes.</summary>
     /// <returns>One elapsed time in milliseconds per sample.</returns>
-    private static async Task<double[]> MeasureDelays(TimeProvider provider, TimeSpan interval, int count)
+    private static async Task<double[]> MeasureDelaysAsync(TimeProvider provider, TimeSpan interval, int count)
     {
         // Warm up the provider and JIT the path.
         await Task.Delay(interval, provider);
@@ -60,7 +100,7 @@ internal static class Program
 
     /// <summary>Measures the gap between consecutive <see cref="PeriodicTimer"/> ticks.</summary>
     /// <returns>One interval in milliseconds per sample.</returns>
-    private static async Task<double[]> MeasureTicks(TimeProvider provider, TimeSpan interval, int count)
+    private static async Task<double[]> MeasureTicksAsync(TimeProvider provider, TimeSpan interval, int count)
     {
         double[] samples = new double[count];
         using PeriodicTimer timer = new(interval, provider);
@@ -80,7 +120,7 @@ internal static class Program
     }
 
     /// <summary>Writes one CSV row per sample.</summary>
-    private static async Task WriteSamples(StreamWriter writer, string provider, string scenario, double[] samples)
+    private static async Task WriteSamplesAsync(StreamWriter writer, string provider, string scenario, double[] samples)
     {
         for (int i = 0; i < samples.Length; i++)
         {

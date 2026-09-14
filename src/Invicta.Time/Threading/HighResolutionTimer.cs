@@ -7,8 +7,8 @@ using System.Runtime.Versioning;
 namespace Invicta.Threading;
 
 /// <summary>
-/// The <see cref="ITimer"/> handed to callers. The scheduler only holds <see cref="TimerEntry"/>, so if the
-/// caller drops every reference to this wrapper it is collected and its finalizer stops the timer, matching
+/// Represents the <see cref="ITimer"/> handed to callers. The scheduler only holds <see cref="TimerEntry"/>, so if
+/// the caller drops every reference to this wrapper it is collected and its finalizer stops the timer, matching
 /// <see cref="System.Threading.Timer"/>.
 /// </summary>
 [SupportedOSPlatform("windows10.0.17134")]

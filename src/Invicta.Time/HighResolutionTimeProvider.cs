@@ -8,7 +8,7 @@ using Invicta.Threading;
 namespace Invicta;
 
 /// <summary>
-/// A <see cref="TimeProvider"/> whose timers are driven by a Windows high-resolution waitable timer
+/// Provides <see cref="TimeProvider"/> timers driven by a Windows high-resolution waitable timer
 /// (<c>CreateWaitableTimerExW</c> with <c>CREATE_WAITABLE_TIMER_HIGH_RESOLUTION</c>), giving sub-millisecond
 /// timer resolution instead of the ~15.6 ms system clock tick used by <see cref="TimeProvider.System"/>.
 /// </summary>

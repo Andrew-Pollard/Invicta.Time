@@ -34,11 +34,33 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
         yield return new TestFixtureData(HighResolutionTimeProvider.Instance).SetArgDisplayNames("HighResolution");
     }
 
+    private static IEnumerable<TestCaseData> OneShotPeriods()
+    {
+        yield return new TestCaseData(Timeout.InfiniteTimeSpan).SetArgDisplayNames("Infinite");
+        yield return new TestCaseData(TimeSpan.Zero).SetArgDisplayNames("Zero");
+    }
+
+    private static IEnumerable<TestCaseData> DueTimesLongerThanTheTest()
+    {
+        yield return new TestCaseData(Timeout.InfiniteTimeSpan).SetArgDisplayNames("Infinite");
+        yield return new TestCaseData(TimeSpan.FromHours(1)).SetArgDisplayNames("OneHour");
+    }
+
+    private static IEnumerable<TestCaseData> InvalidDueTimesAndPeriods()
+    {
+        yield return new TestCaseData(TimeSpan.FromMilliseconds(-2), Timeout.InfiniteTimeSpan)
+            .SetArgDisplayNames("NegativeDueTime");
+        yield return new TestCaseData(Timeout.InfiniteTimeSpan, TimeSpan.FromMilliseconds(-2))
+            .SetArgDisplayNames("NegativePeriod");
+        yield return new TestCaseData(TimeSpan.FromDays(50), Timeout.InfiniteTimeSpan)
+            .SetArgDisplayNames("DueTimeTooLong");
+    }
+
     [OneTimeSetUp]
     public async Task WarmUpProvider() => await Task.Delay(TimeSpan.FromMilliseconds(1), _provider);
 
     [Test]
-    public void GetUtcNow_LiesBetweenSurroundingReadings()
+    public void GetUtcNow_ComparedWithSystemClock_LiesBetweenSurroundingReadings()
     {
         DateTimeOffset before = DateTimeOffset.UtcNow;
         DateTimeOffset now = _provider.GetUtcNow();
@@ -52,7 +74,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public void GetTimestamp_AgreesWithStopwatch()
+    public void GetTimestamp_ComparedWithStopwatch_Agrees()
     {
         long before = Stopwatch.GetTimestamp();
         long timestamp = _provider.GetTimestamp();
@@ -69,7 +91,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Timer_FiresAfterDueTime()
+    public async Task CreateTimer_WithDueTime_FiresAfterDueTime()
     {
         TaskCompletionSource<TimeSpan> fired = new();
         long start = Stopwatch.GetTimestamp();
@@ -82,7 +104,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Timer_PassesStateToCallback()
+    public async Task CreateTimer_WithState_PassesStateToCallback()
     {
         object state = new();
         TaskCompletionSource<object?> observed = new();
@@ -94,7 +116,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Timer_PassesNullStateToCallback()
+    public async Task CreateTimer_WithNullState_PassesNullToCallback()
     {
         TaskCompletionSource<object?> observed = new();
 
@@ -104,23 +126,12 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
         Assert.That(await observed.Task.WaitAsync(s_timeout), Is.Null);
     }
 
-    [Test]
-    public async Task Timer_WithInfinitePeriod_FiresOnce()
+    [TestCaseSource(nameof(OneShotPeriods))]
+    public async Task CreateTimer_WithOneShotPeriod_FiresOnce(TimeSpan period)
     {
         int count = 0;
         using ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, s_due, Timeout.InfiniteTimeSpan);
-
-        await Task.Delay(s_due * 6);
-        Assert.That(Volatile.Read(ref count), Is.EqualTo(1));
-    }
-
-    [Test]
-    public async Task Timer_WithZeroPeriod_FiresOnce()
-    {
-        int count = 0;
-        using ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, s_due, TimeSpan.Zero);
+            _ => Interlocked.Increment(ref count), null, s_due, period);
 
         await Task.Delay(s_due * 6);
         Assert.That(Volatile.Read(ref count), Is.EqualTo(1));
@@ -128,7 +139,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
 
     [Test]
     [Category(TestCategories.Timing)]
-    public async Task Timer_WithPeriod_FiresRepeatedly()
+    public async Task CreateTimer_WithPeriod_FiresRepeatedly()
     {
         int count = 0;
         using ITimer timer = _provider.CreateTimer(
@@ -139,7 +150,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Timer_WithZeroDueTime_FiresImmediately()
+    public async Task CreateTimer_WithZeroDueTime_FiresImmediately()
     {
         TaskCompletionSource fired = new();
         using ITimer timer = _provider.CreateTimer(
@@ -148,30 +159,19 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
         await fired.Task.WaitAsync(s_timeout);
     }
 
-    [Test]
-    public async Task Timer_WithInfiniteDueTime_NeverFires()
+    [TestCaseSource(nameof(DueTimesLongerThanTheTest))]
+    public async Task CreateTimer_WithDueTimeLongerThanTheTest_DoesNotFire(TimeSpan dueTime)
     {
         int count = 0;
         using ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            _ => Interlocked.Increment(ref count), null, dueTime, Timeout.InfiniteTimeSpan);
 
         await Task.Delay(s_due * 4);
         Assert.That(Volatile.Read(ref count), Is.Zero);
     }
 
     [Test]
-    public async Task Timer_WithLongDueTime_DoesNotFireEarly()
-    {
-        int count = 0;
-        using ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, TimeSpan.FromHours(1), Timeout.InfiniteTimeSpan);
-
-        await Task.Delay(s_due * 4);
-        Assert.That(Volatile.Read(ref count), Is.Zero);
-    }
-
-    [Test]
-    public async Task Timer_ChangeToInfinite_StopsFiring()
+    public async Task Change_ToInfiniteDueTime_StopsFiring()
     {
         int count = 0;
         using ITimer timer = _provider.CreateTimer(
@@ -188,7 +188,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Timer_ChangeBeforeDueTime_Reschedules()
+    public async Task Change_BeforeDueTime_Reschedules()
     {
         TaskCompletionSource<TimeSpan> fired = new();
         long start = Stopwatch.GetTimestamp();
@@ -206,7 +206,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Timer_ChangePeriodFromInsideCallback_TakesEffect()
+    public async Task Change_FromInsideCallback_TakesEffect()
     {
         TimeSpan longPeriod = s_period * 4;
         StrongBox<ITimer?> self = new();
@@ -243,7 +243,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Timer_CanDisposeItselfInsideCallback()
+    public async Task Dispose_FromInsideCallback_StopsTimer()
     {
         StrongBox<ITimer?> self = new();
         TaskCompletionSource fired = new();
@@ -269,7 +269,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Timer_AfterFiring_CanBeRestartedWithChange()
+    public async Task Change_AfterOneShotFired_RestartsTimer()
     {
         TaskCompletionSource first = new();
         TaskCompletionSource second = new();
@@ -300,7 +300,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
 
     [Test]
     [Category(TestCategories.Timing)]
-    public async Task Timer_BlockedCallback_DoesNotBlockOtherTimers()
+    public async Task CreateTimer_WhileAnotherCallbackIsBlocked_StillFires()
     {
         using ManualResetEventSlim release = new();
         TaskCompletionSource blocking = new();
@@ -329,7 +329,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task ManyTimers_AllFire()
+    public async Task CreateTimer_ManyTimers_AllFire()
     {
         const int TimerCount = 100;
 
@@ -362,7 +362,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task TimersCreatedConcurrently_AllFire()
+    public async Task CreateTimer_FromManyThreadsConcurrently_AllFire()
     {
         const int Threads = 8;
         const int PerThread = 10;
@@ -398,7 +398,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task Dispose_StopsCallbacks()
+    public async Task Dispose_PeriodicTimer_StopsCallbacks()
     {
         int count = 0;
         ITimer timer = _provider.CreateTimer(
@@ -415,7 +415,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public void Dispose_CanBeCalledMultipleTimes()
+    public void Dispose_CalledTwice_DoesNotThrow()
     {
         ITimer timer = _provider.CreateTimer(
             _ => { }, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -428,7 +428,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task DisposeAsync_WaitsForRunningCallback()
+    public async Task DisposeAsync_WhileCallbackIsRunning_WaitsForCallback()
     {
         using ManualResetEventSlim release = new();
         TaskCompletionSource entered = new();
@@ -456,7 +456,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task DisposeAsync_CanBeCalledMultipleTimes()
+    public async Task DisposeAsync_CalledTwice_Completes()
     {
         ITimer timer = _provider.CreateTimer(
             _ => { }, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -491,22 +491,11 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
             () => _provider.CreateTimer(null!, null, s_due, Timeout.InfiniteTimeSpan),
             Throws.ArgumentNullException);
 
-    [Test]
-    public void CreateTimer_InvalidDueTimeOrPeriod_Throws()
-    {
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(
-                () => _provider.CreateTimer(_ => { }, null, TimeSpan.FromMilliseconds(-2), Timeout.InfiniteTimeSpan),
-                Throws.TypeOf<ArgumentOutOfRangeException>());
-            Assert.That(
-                () => _provider.CreateTimer(_ => { }, null, Timeout.InfiniteTimeSpan, TimeSpan.FromMilliseconds(-2)),
-                Throws.TypeOf<ArgumentOutOfRangeException>());
-            Assert.That(
-                () => _provider.CreateTimer(_ => { }, null, TimeSpan.FromDays(50), Timeout.InfiniteTimeSpan),
-                Throws.TypeOf<ArgumentOutOfRangeException>());
-        }
-    }
+    [TestCaseSource(nameof(InvalidDueTimesAndPeriods))]
+    public void CreateTimer_InvalidDueTimeOrPeriod_Throws(TimeSpan dueTime, TimeSpan period) =>
+        Assert.That(
+            () => _provider.CreateTimer(_ => { }, null, dueTime, period),
+            Throws.TypeOf<ArgumentOutOfRangeException>());
 
     [Test]
     public void Change_InvalidDueTimeOrPeriod_Throws()
@@ -526,7 +515,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task ExecutionContext_FlowsToCallback()
+    public async Task CreateTimer_WithAsyncLocalValue_FlowsExecutionContextToCallback()
     {
         AsyncLocal<string> local = new() { Value = "flowed" };
         TaskCompletionSource<string?> observed = new();
@@ -538,7 +527,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task ExecutionContext_NotFlowedWhenSuppressed()
+    public async Task CreateTimer_WithFlowSuppressed_DoesNotFlowExecutionContext()
     {
         AsyncLocal<string> local = new() { Value = "flowed" };
         TaskCompletionSource<string?> observed = new();
@@ -597,7 +586,7 @@ internal sealed class TimeProviderConformanceTests(TimeProvider provider)
     }
 
     [Test]
-    public async Task PeriodicTimer_Ticks_AndStopsAfterDispose()
+    public async Task WaitForNextTickAsync_BeforeAndAfterDispose_ReturnsTrueThenFalse()
     {
         PeriodicTimer periodic = new(s_period, _provider);
 

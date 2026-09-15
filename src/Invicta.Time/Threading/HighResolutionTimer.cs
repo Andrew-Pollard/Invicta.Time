@@ -22,7 +22,7 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         Justification = "The timer doesn't own the captured context, and ExecutionContext.Dispose does nothing.")]
     private readonly ExecutionContext? _executionContext;
 
-    private readonly TimerScheduler.Registration _registration;
+    private readonly IWorkItemRegistration _registration;
 
     private readonly Lock _lock = new();
 
@@ -43,7 +43,7 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         _callback = callback;
         _state = state;
         _executionContext = executionContext;
-        _registration = new TimerScheduler.Registration(this);
+        _registration = TimerScheduler.Register(this);
     }
 
     /// <inheritdoc/>

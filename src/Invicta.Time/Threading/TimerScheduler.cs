@@ -33,7 +33,8 @@ internal sealed class TimerScheduler
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
 
     private readonly Lock _lock = new();
-    private readonly SortedSet<Registration> _scheduled = new(Comparer<Registration>.Create(CompareDueTimes));
+    private readonly SortedSet<Registration> _scheduled =
+        new(Comparer<Registration>.Create(static (x, y) => CompareDueTimes((x.DueTime, x.Id), (y.DueTime, y.Id))));
 
     // Due times are measured from this Stopwatch timestamp.
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
@@ -57,16 +58,23 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>
-    /// Orders registrations by due time, breaking ties with <see cref="Registration.Id"/> so that different
-    /// registrations never compare as equal. <see cref="SortedSet{T}"/> treats registrations that compare as equal as
-    /// duplicates, which would drop one that is due at the same time as another.
+    /// Registers a work item with the scheduler. It is not queued until the returned registration is changed.
     /// </summary>
-    /// <param name="x">The first registration.</param>
-    /// <param name="y">The second registration.</param>
+    /// <param name="workItem">The work item to queue to the thread pool each time the registration is due.</param>
+    /// <returns>The registration that controls when the work item is queued.</returns>
+    public static IWorkItemRegistration Register(IThreadPoolWorkItem workItem) => new Registration(workItem);
+
+    /// <summary>
+    /// Orders registrations by due time, breaking ties with their IDs so that different registrations never compare
+    /// as equal. <see cref="SortedSet{T}"/> treats registrations that compare as equal as duplicates, which would drop
+    /// one that is due at the same time as another.
+    /// </summary>
+    /// <param name="x">The first registration's due time and ID.</param>
+    /// <param name="y">The second registration's due time and ID.</param>
     /// <returns>
     /// A negative number if <paramref name="x"/> is due first, or a positive number if it is due later.
     /// </returns>
-    internal static int CompareDueTimes(Registration x, Registration y)
+    internal static int CompareDueTimes((TimeSpan DueTime, long Id) x, (TimeSpan DueTime, long Id) y)
     {
         int byDueTime = x.DueTime.CompareTo(y.DueTime);
 
@@ -271,7 +279,7 @@ internal sealed class TimerScheduler
 
     /// <summary>Represents a work item's place in the schedule.</summary>
     /// <param name="workItem">The work item to queue to the thread pool each time the registration is due.</param>
-    internal sealed class Registration(IThreadPoolWorkItem workItem)
+    private sealed class Registration(IThreadPoolWorkItem workItem) : IWorkItemRegistration
     {
         private static long s_lastId;
 
@@ -302,21 +310,10 @@ internal sealed class TimerScheduler
         /// <remarks>Guarded by the scheduler's lock.</remarks>
         internal bool IsCancelled { get; set; }
 
-        /// <summary>Schedules the work item with a new due time and period, replacing any schedule it has.</summary>
-        /// <param name="dueTime">
-        /// The delay before the work item is first queued, or <see cref="Timeout.InfiniteTimeSpan"/> to leave it
-        /// stopped.
-        /// </param>
-        /// <param name="period">
-        /// The interval between queuings, or <see cref="Timeout.InfiniteTimeSpan"/> or zero to queue it once.
-        /// </param>
-        /// <returns>
-        /// <see langword="true"/> if the work item was scheduled; <see langword="false"/> if the registration has been
-        /// cancelled.
-        /// </returns>
+        /// <inheritdoc/>
         public bool Change(TimeSpan dueTime, TimeSpan period) => Instance.Schedule(this, dueTime, period);
 
-        /// <summary>Stops the work item being queued again, and makes every later <see cref="Change"/> fail.</summary>
+        /// <inheritdoc/>
         public void Cancel() => Instance.Cancel(this);
     }
 }

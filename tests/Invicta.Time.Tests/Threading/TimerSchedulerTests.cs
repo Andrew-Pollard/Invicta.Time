@@ -11,10 +11,10 @@ internal sealed class TimerSchedulerTests
     private static readonly TimeSpan s_later = TimeSpan.FromMilliseconds(200);
 
     [Test]
-    public void CompareDueTimes_DifferentDueTimes_OrdersByDueTime()
+    public void CompareDueTimes_DifferentDueTimes_OrdersByDueTimeBeforeId()
     {
-        TimerScheduler.Registration later = NewRegistration(s_later);
-        TimerScheduler.Registration earlier = NewRegistration(s_earlier);
+        (TimeSpan, long) later = (s_later, 1);
+        (TimeSpan, long) earlier = (s_earlier, 2);
 
         using (Assert.EnterMultipleScope())
         {
@@ -24,10 +24,10 @@ internal sealed class TimerSchedulerTests
     }
 
     [Test]
-    public void CompareDueTimes_SameDueTime_IsNotEqual()
+    public void CompareDueTimes_SameDueTimeDifferentIds_IsNotEqual()
     {
-        TimerScheduler.Registration first = NewRegistration(s_earlier);
-        TimerScheduler.Registration second = NewRegistration(s_earlier);
+        (TimeSpan, long) first = (s_earlier, 1);
+        (TimeSpan, long) second = (s_earlier, 2);
 
         int firstToSecond = TimerScheduler.CompareDueTimes(first, second);
         int secondToFirst = TimerScheduler.CompareDueTimes(second, first);
@@ -40,24 +40,21 @@ internal sealed class TimerSchedulerTests
     }
 
     [Test]
-    public void CompareDueTimes_SameRegistration_IsZero()
+    public void CompareDueTimes_SameDueTimeAndId_IsZero()
     {
-        TimerScheduler.Registration registration = NewRegistration(s_earlier);
+        (TimeSpan, long) registration = (s_earlier, 1);
 
         Assert.That(TimerScheduler.CompareDueTimes(registration, registration), Is.Zero);
     }
 
     [Test]
-    public void CompareDueTimes_InSortedSetWithSameDueTimes_KeepsAllRegistrations()
+    public void CompareDueTimes_InSortedSetWithSameDueTimes_KeepsAll()
     {
-        TimerScheduler.Registration first = NewRegistration(s_earlier);
-        TimerScheduler.Registration second = NewRegistration(s_earlier);
-        TimerScheduler.Registration third = NewRegistration(s_earlier);
-        TimerScheduler.Registration[] registrations = [first, second, third];
+        (TimeSpan, long)[] registrations = [(s_earlier, 1), (s_earlier, 2), (s_earlier, 3)];
 
-        SortedSet<TimerScheduler.Registration> scheduled = new(
-            Comparer<TimerScheduler.Registration>.Create(TimerScheduler.CompareDueTimes));
-        foreach (TimerScheduler.Registration registration in registrations)
+        SortedSet<(TimeSpan, long)> scheduled = new(
+            Comparer<(TimeSpan, long)>.Create(TimerScheduler.CompareDueTimes));
+        foreach ((TimeSpan, long) registration in registrations)
         {
             scheduled.Add(registration);
         }
@@ -99,13 +96,5 @@ internal sealed class TimerSchedulerTests
             dueTime: s_earlier, period: TimeSpan.FromMilliseconds(10), now: TimeSpan.FromMilliseconds(137));
 
         Assert.That(nextDueTime, Is.EqualTo(TimeSpan.FromMilliseconds(147)));
-    }
-
-    private static TimerScheduler.Registration NewRegistration(TimeSpan dueTime) =>
-        new(new NoOpWorkItem()) { DueTime = dueTime };
-
-    private sealed class NoOpWorkItem : IThreadPoolWorkItem
-    {
-        public void Execute() { }
     }
 }

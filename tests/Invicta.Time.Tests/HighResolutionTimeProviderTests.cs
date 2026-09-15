@@ -11,7 +11,7 @@ using NUnit.Framework;
 namespace Invicta;
 
 /// <summary>
-/// Behavior specific to <see cref="HighResolutionTimeProvider"/>, such as its resolution, which
+/// Tests behavior specific to <see cref="HighResolutionTimeProvider"/>, such as its resolution, which
 /// <see cref="TimeProvider.System"/> does not share.
 /// </summary>
 internal sealed class HighResolutionTimeProviderTests

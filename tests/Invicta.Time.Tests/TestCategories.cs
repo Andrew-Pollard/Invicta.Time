@@ -7,8 +7,8 @@ namespace Invicta;
 internal static class TestCategories
 {
     /// <summary>
-    /// Tests that expect callbacks within a time limit, or at a minimum rate, and so can fail on a heavily loaded
-    /// machine. Exclude them with <c>dotnet test --filter TestCategory!=Timing</c>.
+    /// Names the category of tests that expect callbacks within a time limit, or at a minimum rate, and so can fail on
+    /// a heavily loaded machine. Exclude them with <c>dotnet test --filter TestCategory!=Timing</c>.
     /// </summary>
     public const string Timing = nameof(Timing);
 }

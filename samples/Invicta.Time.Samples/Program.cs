@@ -13,7 +13,7 @@ namespace Invicta;
 /// </summary>
 internal static class Program
 {
-    /// <summary>The longest period, in milliseconds, that <see cref="PeriodicTimer"/> supports.</summary>
+    // The longest period, in milliseconds, that PeriodicTimer supports.
     private const double MaxIntervalMs = 4294967294;
 
     /// <summary>Measures both providers and writes the samples to CSV.</summary>
@@ -83,6 +83,9 @@ internal static class Program
     }
 
     /// <summary>Measures how long each <see cref="Task.Delay(TimeSpan, TimeProvider)"/> actually takes.</summary>
+    /// <param name="provider">The provider to delay with.</param>
+    /// <param name="interval">The delay to request.</param>
+    /// <param name="count">The number of delays to measure.</param>
     /// <returns>One elapsed time in milliseconds per sample.</returns>
     private static async Task<double[]> MeasureDelaysAsync(TimeProvider provider, TimeSpan interval, int count)
     {
@@ -101,6 +104,9 @@ internal static class Program
     }
 
     /// <summary>Measures the gap between consecutive <see cref="PeriodicTimer"/> ticks.</summary>
+    /// <param name="provider">The provider to create the timer with.</param>
+    /// <param name="interval">The timer's period.</param>
+    /// <param name="count">The number of intervals to measure.</param>
     /// <returns>One interval in milliseconds per sample.</returns>
     private static async Task<double[]> MeasureTicksAsync(TimeProvider provider, TimeSpan interval, int count)
     {
@@ -122,6 +128,11 @@ internal static class Program
     }
 
     /// <summary>Writes one CSV row per sample.</summary>
+    /// <param name="writer">The CSV file to write to.</param>
+    /// <param name="provider">The provider name for the first column.</param>
+    /// <param name="scenario">The scenario name for the second column.</param>
+    /// <param name="samples">The samples, in milliseconds.</param>
+    /// <returns>A task that completes once every row is written.</returns>
     private static async Task WriteSamplesAsync(StreamWriter writer, string provider, string scenario, double[] samples)
     {
         for (int i = 0; i < samples.Length; i++)

@@ -23,23 +23,6 @@ namespace Invicta;
     Justification = "BenchmarkDotNet uses [GlobalCleanup] methods for disposal.")]
 public class TimerBenchmarks
 {
-    /// <summary>
-    /// Configures the statistics and time unit that the benchmark results are reported with.
-    /// </summary>
-    [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
-        Justification = "Instantiated by BenchmarkDotNet via reflection.")]
-    private sealed class Config : ManualConfig
-    {
-        /// <summary>
-        /// Adds the median, 95th percentile and maximum columns, and reports times in milliseconds.
-        /// </summary>
-        public Config()
-        {
-            AddColumn(StatisticColumn.Median, StatisticColumn.P95, StatisticColumn.Max);
-            WithSummaryStyle(SummaryStyle.Default.WithTimeUnit(TimeUnit.Millisecond));
-        }
-    }
-
     private static readonly TimeSpan s_desiredDuration = TimeSpan.FromMilliseconds(1);
 
     private PeriodicTimer? _periodicTimer;
@@ -48,7 +31,7 @@ public class TimerBenchmarks
     private SemaphoreSlim? _timerTickedSemaphore;
 
     /// <summary>
-    /// The <see cref="Invicta.NamedTimeProvider"/>s to benchmark.
+    /// Gets the <see cref="Invicta.NamedTimeProvider"/>s to benchmark.
     /// </summary>
     public static IEnumerable<NamedTimeProvider> NamedTimeProviders
     {
@@ -68,7 +51,7 @@ public class TimerBenchmarks
     }
 
     /// <summary>
-    /// The <see cref="Invicta.NamedTimeProvider"/> currently under test.
+    /// Gets or sets the <see cref="Invicta.NamedTimeProvider"/> currently under test.
     /// </summary>
     [ParamsSource(nameof(NamedTimeProviders))]
     public NamedTimeProvider NamedTimeProvider { get; set; } = null!;
@@ -188,5 +171,22 @@ public class TimerBenchmarks
         }
 
         _timerTickedSemaphore?.Dispose();
+    }
+
+    /// <summary>
+    /// Configures the statistics and time unit that the benchmark results are reported with.
+    /// </summary>
+    [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+        Justification = "Instantiated by BenchmarkDotNet via reflection.")]
+    private sealed class Config : ManualConfig
+    {
+        /// <summary>
+        /// Adds the median, 95th percentile and maximum columns, and reports times in milliseconds.
+        /// </summary>
+        public Config()
+        {
+            AddColumn(StatisticColumn.Median, StatisticColumn.P95, StatisticColumn.Max);
+            WithSummaryStyle(SummaryStyle.Default.WithTimeUnit(TimeUnit.Millisecond));
+        }
     }
 }

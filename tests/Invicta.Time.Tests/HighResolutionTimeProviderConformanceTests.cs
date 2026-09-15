@@ -11,7 +11,7 @@ using static Invicta.TimeProviderFixtures;
 namespace Invicta;
 
 /// <summary>
-/// Behavior that every <see cref="TimeProvider"/> shares, run against both <see cref="TimeProvider.System"/> and
+/// Tests behavior that every <see cref="TimeProvider"/> shares, run against both <see cref="TimeProvider.System"/> and
 /// <see cref="HighResolutionTimeProvider.Instance"/> so the two cannot drift apart. Ported from the .NET runtime's
 /// own TimeProvider and System.Threading.Timer tests.
 /// </summary>
@@ -19,28 +19,6 @@ namespace Invicta;
 internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider provider)
 {
     private readonly TimeProvider _provider = provider;
-
-    private static IEnumerable<TestCaseData> OneShotPeriods()
-    {
-        yield return new TestCaseData(Timeout.InfiniteTimeSpan).SetArgDisplayNames("Infinite");
-        yield return new TestCaseData(TimeSpan.Zero).SetArgDisplayNames("Zero");
-    }
-
-    private static IEnumerable<TestCaseData> DueTimesLongerThanTheTest()
-    {
-        yield return new TestCaseData(Timeout.InfiniteTimeSpan).SetArgDisplayNames("Infinite");
-        yield return new TestCaseData(TimeSpan.FromHours(1)).SetArgDisplayNames("OneHour");
-    }
-
-    private static IEnumerable<TestCaseData> InvalidDueTimesAndPeriods()
-    {
-        yield return new TestCaseData(TimeSpan.FromMilliseconds(-2), Timeout.InfiniteTimeSpan)
-            .SetArgDisplayNames("NegativeDueTime");
-        yield return new TestCaseData(Timeout.InfiniteTimeSpan, TimeSpan.FromMilliseconds(-2))
-            .SetArgDisplayNames("NegativePeriod");
-        yield return new TestCaseData(TimeSpan.FromDays(50), Timeout.InfiniteTimeSpan)
-            .SetArgDisplayNames("DueTimeTooLong");
-    }
 
     [OneTimeSetUp]
     public async Task WarmUpProvider()
@@ -126,6 +104,12 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         Assert.That(Volatile.Read(ref count), Is.EqualTo(1));
     }
 
+    private static IEnumerable<TestCaseData> OneShotPeriods()
+    {
+        yield return new TestCaseData(Timeout.InfiniteTimeSpan).SetArgDisplayNames("Infinite");
+        yield return new TestCaseData(TimeSpan.Zero).SetArgDisplayNames("Zero");
+    }
+
     [Test]
     [Category(TestCategories.Timing)]
     public async Task CreateTimer_WithPeriod_FiresRepeatedly()
@@ -157,6 +141,12 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
 
         await Task.Delay(Due * 4);
         Assert.That(Volatile.Read(ref count), Is.Zero);
+    }
+
+    private static IEnumerable<TestCaseData> DueTimesLongerThanTheTest()
+    {
+        yield return new TestCaseData(Timeout.InfiniteTimeSpan).SetArgDisplayNames("Infinite");
+        yield return new TestCaseData(TimeSpan.FromHours(1)).SetArgDisplayNames("OneHour");
     }
 
     [Test]
@@ -274,6 +264,16 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
             Throws.TypeOf<ArgumentOutOfRangeException>());
     }
 
+    private static IEnumerable<TestCaseData> InvalidDueTimesAndPeriods()
+    {
+        yield return new TestCaseData(TimeSpan.FromMilliseconds(-2), Timeout.InfiniteTimeSpan)
+            .SetArgDisplayNames("NegativeDueTime");
+        yield return new TestCaseData(Timeout.InfiniteTimeSpan, TimeSpan.FromMilliseconds(-2))
+            .SetArgDisplayNames("NegativePeriod");
+        yield return new TestCaseData(TimeSpan.FromDays(50), Timeout.InfiniteTimeSpan)
+            .SetArgDisplayNames("DueTimeTooLong");
+    }
+
     [Test]
     public async Task CreateTimer_WithAsyncLocalValue_FlowsExecutionContextToCallback()
     {
@@ -306,6 +306,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     }
 
     [Test]
+    [Category(TestCategories.Timing)]
     public async Task CreateTimer_WhenUnreferencedAndCollected_KeepsFiring()
     {
         AbandonedTimer abandoned = AbandonedTimer.Start(_provider);

@@ -14,5 +14,8 @@ public sealed record NamedTimeProvider(string Name, TimeProvider Provider)
     /// Returns <see cref="Name"/>, which BenchmarkDotNet shows in the benchmark output.
     /// </summary>
     /// <returns>The name.</returns>
-    public override string ToString() => Name;
+    public override string ToString()
+    {
+        return Name;
+    }
 }

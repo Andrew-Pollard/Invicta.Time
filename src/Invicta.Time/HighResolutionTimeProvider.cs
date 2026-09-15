@@ -31,12 +31,12 @@ public sealed class HighResolutionTimeProvider : TimeProvider
 {
     private HighResolutionTimeProvider() { }
 
-    /// <summary>Gets the shared <see cref="HighResolutionTimeProvider"/> instance.</summary>
-    public static HighResolutionTimeProvider Instance { get; } = new();
-
     /// <summary>Gets a value indicating whether the current OS supports high-resolution waitable timers.</summary>
     [SupportedOSPlatformGuard("windows10.0.17134")]
     public static bool IsSupported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17134);
+
+    /// <summary>Gets the shared <see cref="HighResolutionTimeProvider"/> instance.</summary>
+    public static HighResolutionTimeProvider Instance { get; } = new();
 
     /// <inheritdoc/>
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)

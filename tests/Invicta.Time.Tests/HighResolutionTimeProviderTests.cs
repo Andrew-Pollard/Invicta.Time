@@ -27,8 +27,10 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
-    public void IsSupported_OnThisMachine_IsTrue() =>
+    public void IsSupported_OnThisMachine_IsTrue()
+    {
         Assert.That(HighResolutionTimeProvider.IsSupported, Is.True);
+    }
 
     [Test]
     public void Instance_ReadTwice_ReturnsTheOnlyInstance()

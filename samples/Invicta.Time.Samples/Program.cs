@@ -77,8 +77,10 @@ internal static class Program
     }
 
     /// <summary>Prints how to run the sample.</summary>
-    private static void PrintUsage() =>
+    private static void PrintUsage()
+    {
         Console.Error.WriteLine("Usage: Invicta.Time.Samples [sample count] [interval in milliseconds] [output path]");
+    }
 
     /// <summary>Measures how long each <see cref="Task.Delay(TimeSpan, TimeProvider)"/> actually takes.</summary>
     /// <returns>One elapsed time in milliseconds per sample.</returns>

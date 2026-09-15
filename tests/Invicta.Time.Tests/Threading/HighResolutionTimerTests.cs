@@ -16,7 +16,10 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
     private readonly TimeProvider _provider = provider;
 
     [OneTimeSetUp]
-    public async Task WarmUpProvider() => await Task.Delay(TimeSpan.FromMilliseconds(1), _provider);
+    public async Task WarmUpProvider()
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(1), _provider);
+    }
 
     [Test]
     public async Task Change_ToInfiniteDueTime_StopsFiring()

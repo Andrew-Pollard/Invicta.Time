@@ -10,6 +10,8 @@ internal static class Program
 {
     /// <summary>Runs the benchmarks selected on the command line, or prompts for them if none are given.</summary>
     /// <param name="args">BenchmarkDotNet's command-line arguments, such as <c>--filter</c>.</param>
-    private static void Main(string[] args) =>
+    private static void Main(string[] args)
+    {
         BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+    }
 }

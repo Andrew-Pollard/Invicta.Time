@@ -23,25 +23,20 @@ namespace Invicta.Threading;
 [SupportedOSPlatform("windows10.0.17134")]
 internal sealed class TimerScheduler
 {
-    /// <summary>Gets the scheduler, creating it on first use.</summary>
-    /// <remarks>
-    /// If the kernel timer cannot be created, every use of this property rethrows that first exception, as
-    /// <see cref="Lazy{T}"/> does. Creation only fails if the system is out of resources.
-    /// </remarks>
-    /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
-    public static TimerScheduler Instance => s_instance.Value;
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
 
-    private readonly Lock _lock = new();
-    private readonly SortedSet<Registration> _scheduled =
-        new(Comparer<Registration>.Create(static (x, y) => CompareDueTimes((x.DueTime, x.Id), (y.DueTime, y.Id))));
+    private static readonly Comparer<Registration> s_dueTimeComparer =
+        Comparer<Registration>.Create(static (x, y) => CompareDueTimes((x.DueTime, x.Id), (y.DueTime, y.Id)));
 
     // Due times are measured from this Stopwatch timestamp.
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
-    // The kernel timer, and the due time it is armed for (TimeSpan.MaxValue if unarmed, guarded by _lock).
     private readonly SafeWaitHandle _timerHandle;
+
+    // Guarded by _lock. _armedDueTime is the due time the kernel timer is armed for, or TimeSpan.MaxValue if unarmed.
     private TimeSpan _armedDueTime = TimeSpan.MaxValue;
+    private readonly SortedSet<Registration> _scheduled = new(s_dueTimeComparer);
+    private readonly Lock _lock = new();
 
     /// <summary>Creates the kernel timer and starts the scheduler thread.</summary>
     /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
@@ -57,12 +52,13 @@ internal sealed class TimerScheduler
         }.Start();
     }
 
-    /// <summary>
-    /// Registers a work item with the scheduler. It is not queued until the returned registration is changed.
-    /// </summary>
-    /// <param name="workItem">The work item to queue to the thread pool each time the registration is due.</param>
-    /// <returns>The registration that controls when the work item is queued.</returns>
-    public static IWorkItemRegistration Register(IThreadPoolWorkItem workItem) => new Registration(workItem);
+    /// <summary>Gets the scheduler, creating it on first use.</summary>
+    /// <remarks>
+    /// If the kernel timer cannot be created, every use of this property rethrows that first exception, as
+    /// <see cref="Lazy{T}"/> does. Creation only fails if the system is out of resources.
+    /// </remarks>
+    /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
+    public static TimerScheduler Instance => s_instance.Value;
 
     /// <summary>
     /// Orders registrations by due time, breaking ties with their IDs so that different registrations never compare
@@ -79,22 +75,6 @@ internal sealed class TimerScheduler
         int byDueTime = x.DueTime.CompareTo(y.DueTime);
 
         return byDueTime != 0 ? byDueTime : x.Id.CompareTo(y.Id);
-    }
-
-    /// <summary>
-    /// Calculates when a periodic registration is next due after a tick. Ticks keep to a fixed cadence from the first
-    /// due time, but if a whole period has already passed, the missed ticks are skipped rather than fired in a burst
-    /// and the cadence restarts from now.
-    /// </summary>
-    /// <param name="dueTime">The due time of the tick that has just come due.</param>
-    /// <param name="period">The interval between ticks.</param>
-    /// <param name="now">The current time on the scheduler's clock.</param>
-    /// <returns>The due time of the next tick.</returns>
-    internal static TimeSpan GetNextDueTime(TimeSpan dueTime, TimeSpan period, TimeSpan now)
-    {
-        TimeSpan nextDueTime = dueTime + period;
-
-        return nextDueTime > now ? nextDueTime : now + period;
     }
 
     /// <summary>Creates the high-resolution kernel timer that every registration shares.</summary>
@@ -114,102 +94,6 @@ internal sealed class TimerScheduler
         }
 
         return handle;
-    }
-
-    /// <summary>Schedules a registration with a new due time and period, replacing any schedule it has.</summary>
-    /// <param name="registration">The registration to schedule.</param>
-    /// <param name="dueTime">
-    /// The delay before the work item is first queued, or <see cref="Timeout.InfiniteTimeSpan"/> to leave it stopped.
-    /// </param>
-    /// <param name="period">
-    /// The interval between queuings, or <see cref="Timeout.InfiniteTimeSpan"/> or zero to queue it once.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> if the registration was scheduled; <see langword="false"/> if it has been cancelled.
-    /// </returns>
-    private bool Schedule(Registration registration, TimeSpan dueTime, TimeSpan period)
-    {
-        lock (_lock)
-        {
-            if (registration.IsCancelled)
-            {
-                return false;
-            }
-
-            if (dueTime == Timeout.InfiniteTimeSpan)
-            {
-                _scheduled.Remove(registration);
-                return true;
-            }
-
-            // Arm first, so that if arming fails the registration keeps its previous schedule.
-            TimeSpan registrationDueTime = GetCurrentTime() + dueTime;
-            if (registrationDueTime < _armedDueTime)
-            {
-                Arm(registrationDueTime);
-            }
-
-            registration.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
-            AddAtDueTime(registration, registrationDueTime);
-
-            return true;
-        }
-    }
-
-    /// <summary>Removes a registration from the schedule for good, so that it is never queued again.</summary>
-    /// <param name="registration">The registration to cancel.</param>
-    private void Cancel(Registration registration)
-    {
-        // The kernel timer is left armed; a spurious wake-up just finds nothing due and re-arms.
-        lock (_lock)
-        {
-            registration.IsCancelled = true;
-            _scheduled.Remove(registration);
-        }
-    }
-
-    /// <summary>Gets the time elapsed since the scheduler started, which due times are measured against.</summary>
-    /// <returns>The current time on the scheduler's clock.</returns>
-    private TimeSpan GetCurrentTime()
-    {
-        // GetElapsedTime converts through a double, so where Stopwatch.Frequency is not TimeSpan.TicksPerSecond the
-        // result can be a 100 ns tick out. That is negligible next to the kernel timer's steps of roughly 0.5 ms.
-        return Stopwatch.GetElapsedTime(_startTimestamp);
-    }
-
-    /// <summary>
-    /// Sets a registration's due time and adds it to the schedule. The registration is removed from the schedule
-    /// first, because the sorted set is ordered by due time and would be corrupted if it changed while the
-    /// registration was in it.
-    /// </summary>
-    /// <param name="registration">The registration to add.</param>
-    /// <param name="dueTime">The time the registration is due, on the scheduler's clock.</param>
-    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    private void AddAtDueTime(Registration registration, TimeSpan dueTime)
-    {
-        _scheduled.Remove(registration);
-
-        registration.DueTime = dueTime;
-        _scheduled.Add(registration);
-    }
-
-    /// <summary>Arms the kernel timer to signal at a due time.</summary>
-    /// <param name="dueTime">The time to signal at, on the scheduler's clock.</param>
-    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    /// <exception cref="Win32Exception">The kernel timer could not be set.</exception>
-    private void Arm(TimeSpan dueTime)
-    {
-        // A negative due time is relative, in 100 ns intervals, which are TimeSpan ticks. If the kernel wakes the
-        // scheduler before the due time, nothing is due yet and it simply re-arms for the remainder.
-        TimeSpan delay = dueTime - GetCurrentTime();
-        long relativeDueTime = -Math.Max(delay.Ticks, 1);
-
-        if (Kernel32.SetWaitableTimer(_timerHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: 0) == 0)
-        {
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
-        }
-
-        _armedDueTime = dueTime;
     }
 
     /// <summary>
@@ -267,6 +151,22 @@ internal sealed class TimerScheduler
         }
     }
 
+    /// <summary>
+    /// Calculates when a periodic registration is next due after a tick. Ticks keep to a fixed cadence from the first
+    /// due time, but if a whole period has already passed, the missed ticks are skipped rather than fired in a burst
+    /// and the cadence restarts from now.
+    /// </summary>
+    /// <param name="dueTime">The due time of the tick that has just come due.</param>
+    /// <param name="period">The interval between ticks.</param>
+    /// <param name="now">The current time on the scheduler's clock.</param>
+    /// <returns>The due time of the next tick.</returns>
+    internal static TimeSpan GetNextDueTime(TimeSpan dueTime, TimeSpan period, TimeSpan now)
+    {
+        TimeSpan nextDueTime = dueTime + period;
+
+        return nextDueTime > now ? nextDueTime : now + period;
+    }
+
     /// <summary>Arms the kernel timer for whichever registration is due soonest, if there is one.</summary>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
     private void ArmForEarliestRegistration()
@@ -275,6 +175,112 @@ internal sealed class TimerScheduler
         {
             Arm(earliest.DueTime);
         }
+    }
+
+    /// <summary>
+    /// Registers a work item with the scheduler. It is not queued until the returned registration is changed.
+    /// </summary>
+    /// <param name="workItem">The work item to queue to the thread pool each time the registration is due.</param>
+    /// <returns>The registration that controls when the work item is queued.</returns>
+    public static IWorkItemRegistration Register(IThreadPoolWorkItem workItem)
+    {
+        return new Registration(workItem);
+    }
+
+    /// <summary>Schedules a registration with a new due time and period, replacing any schedule it has.</summary>
+    /// <param name="registration">The registration to schedule.</param>
+    /// <param name="dueTime">
+    /// The delay before the work item is first queued, or <see cref="Timeout.InfiniteTimeSpan"/> to leave it stopped.
+    /// </param>
+    /// <param name="period">
+    /// The interval between queuings, or <see cref="Timeout.InfiniteTimeSpan"/> or zero to queue it once.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> if the registration was scheduled; <see langword="false"/> if it has been cancelled.
+    /// </returns>
+    private bool Schedule(Registration registration, TimeSpan dueTime, TimeSpan period)
+    {
+        lock (_lock)
+        {
+            if (registration.IsCancelled)
+            {
+                return false;
+            }
+
+            if (dueTime == Timeout.InfiniteTimeSpan)
+            {
+                _scheduled.Remove(registration);
+                return true;
+            }
+
+            // Arm first, so that if arming fails the registration keeps its previous schedule.
+            TimeSpan registrationDueTime = GetCurrentTime() + dueTime;
+            if (registrationDueTime < _armedDueTime)
+            {
+                Arm(registrationDueTime);
+            }
+
+            registration.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
+            AddAtDueTime(registration, registrationDueTime);
+
+            return true;
+        }
+    }
+
+    /// <summary>Removes a registration from the schedule for good, so that it is never queued again.</summary>
+    /// <param name="registration">The registration to cancel.</param>
+    private void Cancel(Registration registration)
+    {
+        // The kernel timer is left armed; a spurious wake-up just finds nothing due and re-arms.
+        lock (_lock)
+        {
+            registration.IsCancelled = true;
+            _scheduled.Remove(registration);
+        }
+    }
+
+    /// <summary>
+    /// Sets a registration's due time and adds it to the schedule. The registration is removed from the schedule
+    /// first, because the sorted set is ordered by due time and would be corrupted if it changed while the
+    /// registration was in it.
+    /// </summary>
+    /// <param name="registration">The registration to add.</param>
+    /// <param name="dueTime">The time the registration is due, on the scheduler's clock.</param>
+    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    private void AddAtDueTime(Registration registration, TimeSpan dueTime)
+    {
+        _scheduled.Remove(registration);
+
+        registration.DueTime = dueTime;
+        _scheduled.Add(registration);
+    }
+
+    /// <summary>Arms the kernel timer to signal at a due time.</summary>
+    /// <param name="dueTime">The time to signal at, on the scheduler's clock.</param>
+    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    /// <exception cref="Win32Exception">The kernel timer could not be set.</exception>
+    private void Arm(TimeSpan dueTime)
+    {
+        // A negative due time is relative, in 100 ns intervals, which are TimeSpan ticks. If the kernel wakes the
+        // scheduler before the due time, nothing is due yet and it simply re-arms for the remainder.
+        TimeSpan delay = dueTime - GetCurrentTime();
+        long relativeDueTime = -Math.Max(delay.Ticks, 1);
+
+        if (Kernel32.SetWaitableTimer(_timerHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: 0) == 0)
+        {
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
+        }
+
+        _armedDueTime = dueTime;
+    }
+
+    /// <summary>Gets the time elapsed since the scheduler started, which due times are measured against.</summary>
+    /// <returns>The current time on the scheduler's clock.</returns>
+    private TimeSpan GetCurrentTime()
+    {
+        // GetElapsedTime converts through a double, so where Stopwatch.Frequency is not TimeSpan.TicksPerSecond the
+        // result can be a 100 ns tick out. That is negligible next to the kernel timer's steps of roughly 0.5 ms.
+        return Stopwatch.GetElapsedTime(_startTimestamp);
     }
 
     /// <summary>Represents a work item's place in the schedule.</summary>
@@ -311,9 +317,15 @@ internal sealed class TimerScheduler
         internal bool IsCancelled { get; set; }
 
         /// <inheritdoc/>
-        public bool Change(TimeSpan dueTime, TimeSpan period) => Instance.Schedule(this, dueTime, period);
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            return Instance.Schedule(this, dueTime, period);
+        }
 
         /// <inheritdoc/>
-        public void Cancel() => Instance.Cancel(this);
+        public void Cancel()
+        {
+            Instance.Cancel(this);
+        }
     }
 }

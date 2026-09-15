@@ -24,12 +24,11 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
 
     private readonly IWorkItemRegistration _registration;
 
-    private readonly Lock _lock = new();
-
     // Guarded by _lock.
     private bool _closed;
     private int _callbacksRunning;
     private TaskCompletionSource? _closeCompletion;
+    private readonly Lock _lock = new();
 
     /// <summary>Creates a timer that is not yet scheduled.</summary>
     /// <param name="callback">The method to invoke each time the timer fires.</param>
@@ -57,40 +56,6 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         ThrowIfInvalidTimeout(period);
 
         return _registration.Change(dueTime, period);
-    }
-
-    /// <summary>
-    /// Stops the timer. Callbacks that are queued but have not started are skipped; callbacks already running are
-    /// not waited for.
-    /// </summary>
-    public void Dispose()
-    {
-        _registration.Cancel();
-
-        lock (_lock)
-        {
-            _closed = true;
-        }
-    }
-
-    /// <summary>Stops the timer, as <see cref="Dispose"/> does.</summary>
-    /// <returns>A task that completes once any callbacks already running have finished.</returns>
-    public ValueTask DisposeAsync()
-    {
-        _registration.Cancel();
-
-        lock (_lock)
-        {
-            _closed = true;
-
-            if (_callbacksRunning == 0)
-            {
-                return default;
-            }
-
-            _closeCompletion ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            return new ValueTask(_closeCompletion.Task);
-        }
     }
 
     /// <summary>
@@ -186,5 +151,42 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
     }
 
     /// <summary>Invokes the callback with its state.</summary>
-    private void InvokeCallback() => _callback(_state);
+    private void InvokeCallback()
+    {
+        _callback(_state);
+    }
+
+    /// <summary>
+    /// Stops the timer. Callbacks that are queued but have not started are skipped; callbacks already running are
+    /// not waited for.
+    /// </summary>
+    public void Dispose()
+    {
+        _registration.Cancel();
+
+        lock (_lock)
+        {
+            _closed = true;
+        }
+    }
+
+    /// <summary>Stops the timer, as <see cref="Dispose"/> does.</summary>
+    /// <returns>A task that completes once any callbacks already running have finished.</returns>
+    public ValueTask DisposeAsync()
+    {
+        _registration.Cancel();
+
+        lock (_lock)
+        {
+            _closed = true;
+
+            if (_callbacksRunning == 0)
+            {
+                return default;
+            }
+
+            _closeCompletion ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return new ValueTask(_closeCompletion.Task);
+        }
+    }
 }

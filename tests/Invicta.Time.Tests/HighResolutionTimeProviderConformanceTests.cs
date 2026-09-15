@@ -43,7 +43,10 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     }
 
     [OneTimeSetUp]
-    public async Task WarmUpProvider() => await Task.Delay(TimeSpan.FromMilliseconds(1), _provider);
+    public async Task WarmUpProvider()
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(1), _provider);
+    }
 
     [Test]
     public void GetUtcNow_ComparedWithSystemClock_LiesBetweenSurroundingReadings()
@@ -256,16 +259,20 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     }
 
     [Test]
-    public void CreateTimer_NullCallback_Throws() =>
+    public void CreateTimer_NullCallback_Throws()
+    {
         Assert.That(
             () => _provider.CreateTimer(null!, null, Due, Timeout.InfiniteTimeSpan),
             Throws.ArgumentNullException);
+    }
 
     [TestCaseSource(nameof(InvalidDueTimesAndPeriods))]
-    public void CreateTimer_InvalidDueTimeOrPeriod_Throws(TimeSpan dueTime, TimeSpan period) =>
+    public void CreateTimer_InvalidDueTimeOrPeriod_Throws(TimeSpan dueTime, TimeSpan period)
+    {
         Assert.That(
             () => _provider.CreateTimer(_ => { }, null, dueTime, period),
             Throws.TypeOf<ArgumentOutOfRangeException>());
+    }
 
     [Test]
     public async Task CreateTimer_WithAsyncLocalValue_FlowsExecutionContextToCallback()
@@ -396,7 +403,10 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         /// <param name="provider">The provider to create the timer with.</param>
         /// <returns>The object counting the timer's ticks.</returns>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static AbandonedTimer Start(TimeProvider provider) => new(provider);
+        public static AbandonedTimer Start(TimeProvider provider)
+        {
+            return new(provider);
+        }
 
         /// <summary>Disposes of the timer, if it still exists.</summary>
         public void Stop()

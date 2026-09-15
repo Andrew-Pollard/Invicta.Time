@@ -123,7 +123,8 @@ dotnet_style_prefer_conditional_expression_over_return = true:silent
 csharp_prefer_simple_default_expression = true:suggestion
 
 # Expression-bodied members
-csharp_style_expression_bodied_methods = true:silent
+csharp_style_expression_bodied_methods = false:suggestion
+dotnet_diagnostic.IDE0022.severity = suggestion
 csharp_style_expression_bodied_constructors = true:silent
 csharp_style_expression_bodied_operators = true:silent
 csharp_style_expression_bodied_properties = true:silent

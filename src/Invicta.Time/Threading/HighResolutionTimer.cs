@@ -7,32 +7,22 @@ using System.Runtime.Versioning;
 
 namespace Invicta.Threading;
 
-/// <summary>
-/// Represents a scheduled timer, and is the <see cref="ITimer"/> handed to callers. Scheduling state is guarded by
-/// the <see cref="TimerScheduler"/> lock; lifetime state by the timer's own lock.
-/// </summary>
-/// <param name="callback">The method to invoke each time the timer fires.</param>
-/// <param name="state">The object to pass to <paramref name="callback"/>.</param>
-/// <param name="executionContext">
-/// The context to invoke <paramref name="callback"/> in, or <see langword="null"/> to invoke it in whatever context
-/// the thread pool thread has.
-/// </param>
+/// <summary>Represents a scheduled timer, and is the <see cref="ITimer"/> handed to callers.</summary>
 [SupportedOSPlatform("windows10.0.17134")]
-internal sealed class HighResolutionTimer(TimerCallback callback, object? state, ExecutionContext? executionContext)
-    : ITimer, IThreadPoolWorkItem
+internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
 {
     // Matches System.Threading.Timer's upper bound (0xFFFFFFFE ms, ~49.7 days).
     private const long MaxSupportedTimeoutMs = 0xFFFFFFFE;
 
     private static readonly ContextCallback s_invokeCallback = static s => ((HighResolutionTimer)s!).InvokeCallback();
 
-    private static long s_lastId;
-
-    private readonly TimerCallback _callback = callback;
-    private readonly object? _state = state;
+    private readonly TimerCallback _callback;
+    private readonly object? _state;
     [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
         Justification = "The timer doesn't own the captured context, and ExecutionContext.Dispose does nothing.")]
-    private readonly ExecutionContext? _executionContext = executionContext;
+    private readonly ExecutionContext? _executionContext;
+
+    private readonly TimerScheduler.Registration _registration;
 
     private readonly Lock _lock = new();
 
@@ -41,25 +31,20 @@ internal sealed class HighResolutionTimer(TimerCallback callback, object? state,
     private int _callbacksRunning;
     private TaskCompletionSource? _closeCompletion;
 
-    /// <summary>Gets a number that uniquely identifies this timer.</summary>
-    /// <remarks>
-    /// The scheduler uses it to distinguish timers that are due at the same time, so that its sorted set does not
-    /// treat them as duplicates.
-    /// </remarks>
-    internal long Id { get; } = Interlocked.Increment(ref s_lastId);
-
-    /// <summary>Gets or sets when the timer is next due, on the <see cref="TimerScheduler"/>'s clock.</summary>
-    /// <remarks>
-    /// Guarded by the <see cref="TimerScheduler"/> lock. Only the scheduler changes it, and it removes the timer from
-    /// its sorted set first, because the set is ordered by this value.
-    /// </remarks>
-    internal TimeSpan DueTime { get; set; }
-
-    /// <summary>
-    /// Gets or sets the interval between callbacks, or <see cref="TimeSpan.Zero"/> for a one-shot timer.
-    /// </summary>
-    /// <remarks>Guarded by the <see cref="TimerScheduler"/> lock.</remarks>
-    internal TimeSpan Period { get; set; }
+    /// <summary>Creates a timer that is not yet scheduled.</summary>
+    /// <param name="callback">The method to invoke each time the timer fires.</param>
+    /// <param name="state">The object to pass to <paramref name="callback"/>.</param>
+    /// <param name="executionContext">
+    /// The context to invoke <paramref name="callback"/> in, or <see langword="null"/> to invoke it in whatever
+    /// context the thread pool thread has.
+    /// </param>
+    public HighResolutionTimer(TimerCallback callback, object? state, ExecutionContext? executionContext)
+    {
+        _callback = callback;
+        _state = state;
+        _executionContext = executionContext;
+        _registration = new TimerScheduler.Registration(this);
+    }
 
     /// <inheritdoc/>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -71,16 +56,7 @@ internal sealed class HighResolutionTimer(TimerCallback callback, object? state,
         ThrowIfInvalidTimeout(dueTime);
         ThrowIfInvalidTimeout(period);
 
-        lock (_lock)
-        {
-            if (_closed)
-            {
-                return false;
-            }
-
-            TimerScheduler.Instance.Schedule(this, dueTime, period);
-            return true;
-        }
+        return _registration.Change(dueTime, period);
     }
 
     /// <summary>
@@ -89,9 +65,11 @@ internal sealed class HighResolutionTimer(TimerCallback callback, object? state,
     /// </summary>
     public void Dispose()
     {
+        _registration.Cancel();
+
         lock (_lock)
         {
-            DisposeCore();
+            _closed = true;
         }
     }
 
@@ -99,9 +77,11 @@ internal sealed class HighResolutionTimer(TimerCallback callback, object? state,
     /// <returns>A task that completes once any callbacks already running have finished.</returns>
     public ValueTask DisposeAsync()
     {
+        _registration.Cancel();
+
         lock (_lock)
         {
-            DisposeCore();
+            _closed = true;
 
             if (_callbacksRunning == 0)
             {
@@ -135,17 +115,6 @@ internal sealed class HighResolutionTimer(TimerCallback callback, object? state,
                 paramName,
                 value,
                 $"The value must be Timeout.InfiniteTimeSpan or between 0 and {MaxSupportedTimeoutMs} milliseconds.");
-        }
-    }
-
-    /// <summary>Marks the timer closed and removes it from the scheduler, if it is not already closed.</summary>
-    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    private void DisposeCore()
-    {
-        if (!_closed)
-        {
-            _closed = true;
-            TimerScheduler.Instance.Unschedule(this);
         }
     }
 

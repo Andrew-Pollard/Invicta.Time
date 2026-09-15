@@ -73,6 +73,9 @@ resolution, so they are inherited unchanged.
   allocates about 50 KB a second.
 - **Armed for the earliest deadline:** a thread scheduling a sooner timer re-arms the kernel timer itself, so no
   wake-up event is needed.
+- **Separate locks:** the scheduler's lock guards the schedule, and each timer's own lock guards its callbacks and
+  disposal. Neither is taken while the other is held, so starting or finishing a callback never waits for the
+  scheduler thread.
 - **Drift-free periods:** missed ticks are skipped rather than fired as a burst.
 
 ## Caveats

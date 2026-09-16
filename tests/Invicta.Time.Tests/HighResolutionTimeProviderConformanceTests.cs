@@ -147,6 +147,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     {
         yield return new TestCaseData(Timeout.InfiniteTimeSpan).SetArgDisplayNames("Infinite");
         yield return new TestCaseData(TimeSpan.FromHours(1)).SetArgDisplayNames("OneHour");
+        yield return new TestCaseData(TimeSpan.FromMilliseconds(4294967294)).SetArgDisplayNames("LongestAccepted");
     }
 
     [Test]

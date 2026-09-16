@@ -1,7 +1,6 @@
 // © 2026 Andrew Pollard. All rights reserved.
 // Licensed under the MIT License.
 
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 
@@ -18,8 +17,6 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
 
     private readonly TimerCallback _callback;
     private readonly object? _state;
-    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
-        Justification = "The timer doesn't own the captured context, and ExecutionContext.Dispose does nothing.")]
     private readonly ExecutionContext? _executionContext;
 
     private readonly IWorkItemRegistration _registration;

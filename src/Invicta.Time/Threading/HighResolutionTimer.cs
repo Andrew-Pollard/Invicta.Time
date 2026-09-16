@@ -55,15 +55,6 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         return _registration.Change(dueTime, period);
     }
 
-    /// <summary>
-    /// Throws if a due time or period is outside the range that <see cref="System.Threading.Timer"/> accepts.
-    /// </summary>
-    /// <param name="value">The due time or period.</param>
-    /// <param name="paramName">The name of the argument that <paramref name="value"/> came from.</param>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="value"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>, or is longer than
-    /// 4294967294 milliseconds.
-    /// </exception>
     private static void ThrowIfInvalidTimeout(
         TimeSpan value,
         [CallerArgumentExpression(nameof(value))] string? paramName = null)
@@ -80,7 +71,6 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         }
     }
 
-    /// <summary>Invokes the callback on a thread pool thread, unless the timer has been closed.</summary>
     void IThreadPoolWorkItem.Execute()
     {
         if (!TryStartCallback())
@@ -98,10 +88,6 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         }
     }
 
-    /// <summary>Records that a callback is starting, unless the timer has been closed.</summary>
-    /// <returns>
-    /// <see langword="true"/> if the callback should run; <see langword="false"/> if it should be skipped.
-    /// </returns>
     private bool TryStartCallback()
     {
         lock (_lock)
@@ -117,7 +103,6 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         }
     }
 
-    /// <summary>Invokes the callback in the captured execution context, if there is one.</summary>
     private void RunCallback()
     {
         if (_executionContext is null)
@@ -130,10 +115,6 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         }
     }
 
-    /// <summary>
-    /// Records that a callback has finished, and completes <see cref="DisposeAsync"/> if it was the last one running
-    /// after the timer was disposed.
-    /// </summary>
     private void EndCallback()
     {
         lock (_lock)
@@ -147,7 +128,6 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         }
     }
 
-    /// <summary>Invokes the callback with its state.</summary>
     private void InvokeCallback()
     {
         _callback(_state);

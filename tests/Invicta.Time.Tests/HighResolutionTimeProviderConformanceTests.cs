@@ -410,8 +410,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         private readonly WeakReference<ITimer> _timer;
         private int _ticks;
 
-        /// <summary>Creates a 1 ms periodic timer and keeps only a weak reference to it.</summary>
-        /// <param name="provider">The provider to create the timer with.</param>
+        // Not inlined, so the local holding the timer dies with this frame rather than with the caller's.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private AbandonedTimer(TimeProvider provider)
         {
@@ -424,19 +423,15 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
             _timer = new WeakReference<ITimer>(timer);
         }
 
-        /// <summary>Gets the number of times the timer has fired.</summary>
         public int Ticks => Volatile.Read(ref _ticks);
 
         /// <summary>Starts a timer that nothing but its provider references.</summary>
-        /// <param name="provider">The provider to create the timer with.</param>
-        /// <returns>The object counting the timer's ticks.</returns>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static AbandonedTimer Start(TimeProvider provider)
         {
             return new(provider);
         }
 
-        /// <summary>Disposes of the timer, if it still exists.</summary>
         public void Stop()
         {
             if (_timer.TryGetTarget(out ITimer? timer))

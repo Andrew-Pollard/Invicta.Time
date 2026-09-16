@@ -30,7 +30,6 @@ internal sealed class TimerScheduler
     private static readonly Comparer<Registration> s_dueTimeComparer =
         Comparer<Registration>.Create(static (x, y) => CompareDueTimes((x.DueTime, x.Id), (y.DueTime, y.Id)));
 
-    // Due times are measured from this Stopwatch timestamp.
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
     private readonly WaitableTimer _waitableTimer = new();
@@ -40,7 +39,6 @@ internal sealed class TimerScheduler
     private readonly SortedSet<Registration> _scheduled = new(s_dueTimeComparer);
     private readonly Lock _lock = new();
 
-    /// <summary>Starts the scheduler thread.</summary>
     private TimerScheduler()
     {
         // At normal priority a loaded machine starves the thread: 1 ms ticks drop from 5000 to under 1000 in five
@@ -79,14 +77,9 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>
-    /// The scheduler thread's loop: waits for the waitable timer, queues every work item that is due, and re-arms the
-    /// waitable timer for the next one.
+    /// The scheduler thread's loop. An exception here goes unhandled and ends the process, deliberately: without
+    /// the scheduler thread, no timer would ever fire again.
     /// </summary>
-    /// <remarks>
-    /// An exception here goes unhandled on the scheduler thread and ends the process, deliberately: without the
-    /// scheduler thread, no timer would ever fire again.
-    /// </remarks>
-    /// <exception cref="Win32Exception">The waitable timer could not be re-armed.</exception>
     private void Run()
     {
         while (true)
@@ -140,8 +133,7 @@ internal sealed class TimerScheduler
         return nextDueTime > now ? nextDueTime : now + period;
     }
 
-    /// <summary>Arms the waitable timer for whichever registration is due soonest, if there is one.</summary>
-    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    // The caller must hold _lock.
     private void ArmForEarliestRegistration()
     {
         if (_scheduled.Min is { } earliest)
@@ -160,17 +152,7 @@ internal sealed class TimerScheduler
         return new Registration(workItem);
     }
 
-    /// <summary>Schedules a registration with a new due time and period, replacing any schedule it has.</summary>
-    /// <param name="registration">The registration to schedule.</param>
-    /// <param name="dueTime">
-    /// The delay before the work item is first queued, or <see cref="Timeout.InfiniteTimeSpan"/> to leave it stopped.
-    /// </param>
-    /// <param name="period">
-    /// The interval between queuings, or <see cref="Timeout.InfiniteTimeSpan"/> or zero to queue it once.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> if the registration was scheduled; <see langword="false"/> if it has been cancelled.
-    /// </returns>
+    /// <summary>Schedules a registration, as <see cref="IWorkItemRegistration.Change"/> describes.</summary>
     private bool Schedule(Registration registration, TimeSpan dueTime, TimeSpan period)
     {
         lock (_lock)
@@ -213,7 +195,6 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>Removes a registration from the schedule for good, so that it is never queued again.</summary>
-    /// <param name="registration">The registration to cancel.</param>
     private void Cancel(Registration registration)
     {
         // The waitable timer is left armed; a spurious wake-up just finds nothing due and re-arms.
@@ -224,26 +205,18 @@ internal sealed class TimerScheduler
         }
     }
 
-    /// <summary>
-    /// Sets a registration's due time and adds it to the schedule. The registration is removed from the schedule
-    /// first, because the sorted set is ordered by due time and would be corrupted if it changed while the
-    /// registration was in it.
-    /// </summary>
-    /// <param name="registration">The registration to add.</param>
-    /// <param name="dueTime">The time the registration is due, on the scheduler's clock.</param>
-    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
+    // The caller must hold _lock. The due time is on the scheduler's clock.
     private void AddAtDueTime(Registration registration, TimeSpan dueTime)
     {
+        // The set is ordered by due time, so the registration has to leave it before that time changes.
         _scheduled.Remove(registration);
 
         registration.DueTime = dueTime;
         _scheduled.Add(registration);
     }
 
-    /// <summary>Arms the waitable timer to signal at a due time.</summary>
-    /// <param name="dueTime">The time to signal at, on the scheduler's clock.</param>
+    /// <summary>Arms the waitable timer to signal at a time on the scheduler's clock.</summary>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    /// <exception cref="Win32Exception">The waitable timer could not be set.</exception>
     private void Arm(TimeSpan dueTime)
     {
         // If the kernel wakes the scheduler before the due time, nothing is due yet and it simply re-arms for the
@@ -253,7 +226,6 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>Gets the time elapsed since the scheduler started, which due times are measured against.</summary>
-    /// <returns>The current time on the scheduler's clock.</returns>
     private TimeSpan GetCurrentTime()
     {
         // GetElapsedTime converts through a double, so where Stopwatch.Frequency is not TimeSpan.TicksPerSecond the
@@ -267,21 +239,15 @@ internal sealed class TimerScheduler
     {
         private static long s_lastId;
 
-        /// <summary>Gets the work item to queue to the thread pool each time the registration is due.</summary>
         internal IThreadPoolWorkItem WorkItem { get; } = workItem;
 
-        /// <summary>Gets a number that uniquely identifies this registration.</summary>
-        /// <remarks>
-        /// The scheduler uses it to distinguish registrations that are due at the same time, so that its sorted set
-        /// does not treat them as duplicates.
-        /// </remarks>
+        /// <summary>
+        /// Gets a number that separates registrations due at the same time, so the sorted set keeps both.
+        /// </summary>
         internal long Id { get; } = Interlocked.Increment(ref s_lastId);
 
         /// <summary>Gets or sets when the registration is next due, on the scheduler's clock.</summary>
-        /// <remarks>
-        /// Guarded by the scheduler's lock. Only the scheduler changes it, and it removes the registration from its
-        /// sorted set first, because the set is ordered by this value.
-        /// </remarks>
+        /// <remarks>Guarded by the scheduler's lock.</remarks>
         internal TimeSpan DueTime { get; set; }
 
         /// <summary>

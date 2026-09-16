@@ -132,6 +132,18 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         await fired.Task.WaitAsync(CallbackTimeout);
     }
 
+    [Test]
+    [Category(TestCategories.Timing)]
+    public async Task CreateTimer_WithZeroDueTimeAndPeriod_FiresRepeatedly()
+    {
+        int count = 0;
+        using ITimer timer = _provider.CreateTimer(
+            _ => Interlocked.Increment(ref count), null, TimeSpan.Zero, Period);
+
+        await Task.Delay(Period * 8);
+        Assert.That(Volatile.Read(ref count), Is.GreaterThanOrEqualTo(3));
+    }
+
     [TestCaseSource(nameof(DueTimesLongerThanTheTest))]
     public async Task CreateTimer_WithDueTimeLongerThanTheTest_DoesNotFire(TimeSpan dueTime)
     {

@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 
 using NUnit.Framework;
 
-using static Invicta.TimeProviderFixtures;
+using static Invicta.TimeProviderFixtureData;
 
 namespace Invicta;
 
@@ -15,7 +15,7 @@ namespace Invicta;
 /// <see cref="HighResolutionTimeProvider.Instance"/> so the two cannot drift apart. Ported from the .NET runtime's
 /// own TimeProvider and System.Threading.Timer tests.
 /// </summary>
-[TestFixtureSource(typeof(TimeProviderFixtures), nameof(TimeProviderFixtures.Providers))]
+[TestFixtureSource(typeof(TimeProviderFixtureData), nameof(TimeProviderFixtureData.Providers))]
 internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider provider)
 {
     private readonly TimeProvider _provider = provider;
@@ -64,10 +64,10 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         long start = Stopwatch.GetTimestamp();
 
         using ITimer timer = _provider.CreateTimer(
-            _ => fired.TrySetResult(Stopwatch.GetElapsedTime(start)), null, Due, Timeout.InfiniteTimeSpan);
+            _ => fired.TrySetResult(Stopwatch.GetElapsedTime(start)), null, DueTime, Timeout.InfiniteTimeSpan);
 
         TimeSpan elapsed = await fired.Task.WaitAsync(CallbackTimeout);
-        Assert.That(elapsed, Is.GreaterThanOrEqualTo(Due - TickTolerance));
+        Assert.That(elapsed, Is.GreaterThanOrEqualTo(DueTime - TickTolerance));
     }
 
     [Test]
@@ -77,7 +77,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         TaskCompletionSource<object?> observed = new();
 
         using ITimer timer = _provider.CreateTimer(
-            s => observed.TrySetResult(s), state, Due, Timeout.InfiniteTimeSpan);
+            s => observed.TrySetResult(s), state, DueTime, Timeout.InfiniteTimeSpan);
 
         Assert.That(await observed.Task.WaitAsync(CallbackTimeout), Is.SameAs(state));
     }
@@ -88,7 +88,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         TaskCompletionSource<object?> observed = new();
 
         using ITimer timer = _provider.CreateTimer(
-            s => observed.TrySetResult(s), null, Due, Timeout.InfiniteTimeSpan);
+            s => observed.TrySetResult(s), null, DueTime, Timeout.InfiniteTimeSpan);
 
         Assert.That(await observed.Task.WaitAsync(CallbackTimeout), Is.Null);
     }
@@ -98,9 +98,9 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     {
         int count = 0;
         using ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, Due, period);
+            _ => Interlocked.Increment(ref count), null, DueTime, period);
 
-        await Task.Delay(Due * 6);
+        await Task.Delay(DueTime * 6);
         Assert.That(Volatile.Read(ref count), Is.EqualTo(1));
     }
 
@@ -116,7 +116,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     {
         int count = 0;
         using ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, Due, Period);
+            _ => Interlocked.Increment(ref count), null, DueTime, Period);
 
         await Task.Delay(Period * 8);
         Assert.That(Volatile.Read(ref count), Is.GreaterThanOrEqualTo(3));
@@ -151,7 +151,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         using ITimer timer = _provider.CreateTimer(
             _ => Interlocked.Increment(ref count), null, dueTime, Timeout.InfiniteTimeSpan);
 
-        await Task.Delay(Due * 4);
+        await Task.Delay(DueTime * 4);
         Assert.That(Volatile.Read(ref count), Is.Zero);
     }
 
@@ -166,12 +166,12 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     public async Task CreateTimer_LaterThanADisposedTimer_StillFires()
     {
         // Disposing the only pending timer leaves the schedule empty while its deadline is still armed.
-        ITimer pending = _provider.CreateTimer(_ => { }, null, Due, Timeout.InfiniteTimeSpan);
+        ITimer pending = _provider.CreateTimer(_ => { }, null, DueTime, Timeout.InfiniteTimeSpan);
         pending.Dispose();
 
         TaskCompletionSource fired = new();
         using ITimer later = _provider.CreateTimer(
-            _ => fired.TrySetResult(), null, Due * 2, Timeout.InfiniteTimeSpan);
+            _ => fired.TrySetResult(), null, DueTime * 2, Timeout.InfiniteTimeSpan);
 
         await fired.Task.WaitAsync(CallbackTimeout);
     }
@@ -262,7 +262,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
                         }
                     },
                     null,
-                    Due,
+                    DueTime,
                     Timeout.InfiniteTimeSpan);
             }
         });
@@ -279,7 +279,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     public void CreateTimer_NullCallback_Throws()
     {
         Assert.That(
-            () => _provider.CreateTimer(null!, null, Due, Timeout.InfiniteTimeSpan),
+            () => _provider.CreateTimer(null!, null, DueTime, Timeout.InfiniteTimeSpan),
             Throws.ArgumentNullException);
     }
 
@@ -308,7 +308,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         TaskCompletionSource<string?> observed = new();
 
         using ITimer timer = _provider.CreateTimer(
-            _ => observed.TrySetResult(local.Value), null, Due, Timeout.InfiniteTimeSpan);
+            _ => observed.TrySetResult(local.Value), null, DueTime, Timeout.InfiniteTimeSpan);
 
         Assert.That(await observed.Task.WaitAsync(CallbackTimeout), Is.EqualTo("flowed"));
     }
@@ -323,7 +323,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
         using (ExecutionContext.SuppressFlow())
         {
             timer = _provider.CreateTimer(
-                _ => observed.TrySetResult(local.Value), null, Due, Timeout.InfiniteTimeSpan);
+                _ => observed.TrySetResult(local.Value), null, DueTime, Timeout.InfiniteTimeSpan);
         }
 
         using (timer)
@@ -353,7 +353,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     [Test]
     public async Task CancellationTokenSource_WithDelay_Cancels()
     {
-        using CancellationTokenSource cts = new(Due, _provider);
+        using CancellationTokenSource cts = new(DueTime, _provider);
         TaskCompletionSource canceled = new();
         using CancellationTokenRegistration registration = cts.Token.Register(() => canceled.TrySetResult());
 
@@ -366,7 +366,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     {
         using CancellationTokenSource cts = new(Timeout.InfiniteTimeSpan, _provider);
 
-        await Task.Delay(Due * 4);
+        await Task.Delay(DueTime * 4);
         Assert.That(cts.IsCancellationRequested, Is.False);
     }
 
@@ -374,9 +374,9 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     public async Task TaskDelay_WithProvider_Completes()
     {
         long start = Stopwatch.GetTimestamp();
-        await Task.Delay(Due, _provider);
+        await Task.Delay(DueTime, _provider);
 
-        Assert.That(Stopwatch.GetElapsedTime(start), Is.GreaterThanOrEqualTo(Due - TickTolerance));
+        Assert.That(Stopwatch.GetElapsedTime(start), Is.GreaterThanOrEqualTo(DueTime - TickTolerance));
     }
 
     [Test]

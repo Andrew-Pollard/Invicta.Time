@@ -9,13 +9,13 @@ namespace Invicta;
 /// Supplies the providers that shared-behavior fixtures run against, and the timings their tests use. Running each
 /// test against <see cref="TimeProvider.System"/> as well keeps the two providers from drifting apart.
 /// </summary>
-internal static class TimeProviderFixtures
+internal static class TimeProviderFixtureData
 {
     /// <summary>
     /// Gets a due time comfortably longer than the ~15.6 ms tick that <see cref="TimeProvider.System"/>'s timers are
     /// limited to.
     /// </summary>
-    public static TimeSpan Due { get; } = TimeSpan.FromMilliseconds(50);
+    public static TimeSpan DueTime { get; } = TimeSpan.FromMilliseconds(50);
 
     /// <summary>Gets a period comfortably longer than the system clock tick.</summary>
     public static TimeSpan Period { get; } = TimeSpan.FromMilliseconds(50);

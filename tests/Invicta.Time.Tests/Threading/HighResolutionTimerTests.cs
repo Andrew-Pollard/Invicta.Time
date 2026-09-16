@@ -6,11 +6,11 @@ using System.Runtime.CompilerServices;
 
 using NUnit.Framework;
 
-using static Invicta.TimeProviderFixtures;
+using static Invicta.TimeProviderFixtureData;
 
 namespace Invicta.Threading;
 
-[TestFixtureSource(typeof(TimeProviderFixtures), nameof(TimeProviderFixtures.Providers))]
+[TestFixtureSource(typeof(TimeProviderFixtureData), nameof(TimeProviderFixtureData.Providers))]
 internal sealed class HighResolutionTimerTests(TimeProvider provider)
 {
     private readonly TimeProvider _provider = provider;
@@ -26,7 +26,7 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
     {
         int count = 0;
         using ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, Due, Period);
+            _ => Interlocked.Increment(ref count), null, DueTime, Period);
 
         await Task.Delay(Period * 4);
         Assert.That(timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan), Is.True);
@@ -43,13 +43,13 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
     {
         int count = 0;
         using ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, Due, Period);
+            _ => Interlocked.Increment(ref count), null, DueTime, Period);
 
         await Task.Delay(Period * 4);
-        Assert.That(timer.Change(Due, period), Is.True);
+        Assert.That(timer.Change(DueTime, period), Is.True);
 
         // The timer fires once more, at the due time just set, and then stops.
-        await Task.Delay((Due + Period) * 2);
+        await Task.Delay((DueTime + Period) * 2);
         int afterLastTick = Volatile.Read(ref count);
         await Task.Delay(Period * 4);
 
@@ -74,7 +74,7 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
             TimeSpan.FromHours(1),
             Timeout.InfiniteTimeSpan);
 
-        Assert.That(timer.Change(Due, Timeout.InfiniteTimeSpan), Is.True);
+        Assert.That(timer.Change(DueTime, Timeout.InfiniteTimeSpan), Is.True);
 
         TimeSpan elapsed = await fired.Task.WaitAsync(CallbackTimeout);
         Assert.That(elapsed, Is.LessThan(TimeSpan.FromMinutes(1)));
@@ -149,11 +149,11 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
                 }
             },
             null,
-            Due,
+            DueTime,
             Timeout.InfiniteTimeSpan);
 
         await first.Task.WaitAsync(CallbackTimeout);
-        Assert.That(timer.Change(Due, Timeout.InfiniteTimeSpan), Is.True);
+        Assert.That(timer.Change(DueTime, Timeout.InfiniteTimeSpan), Is.True);
         await second.Task.WaitAsync(CallbackTimeout);
 
         Assert.That(Volatile.Read(ref count), Is.EqualTo(2));
@@ -166,7 +166,7 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
             _ => { }, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
         timer.Dispose();
-        Assert.That(timer.Change(Due, Timeout.InfiniteTimeSpan), Is.False);
+        Assert.That(timer.Change(DueTime, Timeout.InfiniteTimeSpan), Is.False);
     }
 
     [Test]
@@ -201,7 +201,7 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
                 fired.TrySetResult();
             },
             null,
-            Due,
+            DueTime,
             Period);
 
         self.Value = timer;
@@ -217,7 +217,7 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
     {
         int count = 0;
         ITimer timer = _provider.CreateTimer(
-            _ => Interlocked.Increment(ref count), null, Due, Period);
+            _ => Interlocked.Increment(ref count), null, DueTime, Period);
 
         await Task.Delay(Period * 4);
         timer.Dispose();

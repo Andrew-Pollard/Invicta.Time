@@ -17,7 +17,7 @@ namespace Invicta;
 /// Compares <see cref="TimeProvider.System"/> with <see cref="HighResolutionTimeProvider.Instance"/>. Each benchmark
 /// requests 1 ms, as a delay, a due time or a period, and measures how long it actually takes.
 /// </summary>
-[Config(typeof(Config))]
+[Config(typeof(BenchmarkConfig))]
 [Outliers(OutlierMode.DontRemove)]
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "BenchmarkDotNet uses [GlobalCleanup] methods for disposal.")]
@@ -178,12 +178,12 @@ public class TimerBenchmarks
     /// </summary>
     [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
         Justification = "Instantiated by BenchmarkDotNet via reflection.")]
-    private sealed class Config : ManualConfig
+    private sealed class BenchmarkConfig : ManualConfig
     {
         /// <summary>
         /// Adds the median, 95th percentile and maximum columns, and reports times in milliseconds.
         /// </summary>
-        public Config()
+        public BenchmarkConfig()
         {
             AddColumn(StatisticColumn.Median, StatisticColumn.P95, StatisticColumn.Max);
             WithSummaryStyle(SummaryStyle.Default.WithTimeUnit(TimeUnit.Millisecond));

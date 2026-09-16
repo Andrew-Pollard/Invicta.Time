@@ -36,7 +36,7 @@ internal sealed class TimerScheduler
 
     // Guarded by _lock. _armedDueTime is the due time the waitable timer is armed for, or TimeSpan.MaxValue if unarmed.
     private TimeSpan _armedDueTime = TimeSpan.MaxValue;
-    private readonly SortedSet<Registration> _scheduled = new(s_dueTimeComparer);
+    private readonly SortedSet<Registration> _schedule = new(s_dueTimeComparer);
     private readonly Lock _lock = new();
 
     private TimerScheduler()
@@ -100,8 +100,8 @@ internal sealed class TimerScheduler
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
     private void QueueDueWorkItems()
     {
-        TimeSpan now = GetCurrentTime();
-        while (_scheduled.Min is { } registration && registration.DueTime <= now)
+        TimeSpan now = GetTimeSinceStart();
+        while (_schedule.Min is { } registration && registration.DueTime <= now)
         {
             if (registration.Period > TimeSpan.Zero)
             {
@@ -109,7 +109,7 @@ internal sealed class TimerScheduler
             }
             else
             {
-                _scheduled.Remove(registration);
+                _schedule.Remove(registration);
             }
 
             // The global queue, not the calling thread's local one, so a busy thread cannot sit on a callback.
@@ -136,7 +136,7 @@ internal sealed class TimerScheduler
     // The caller must hold _lock.
     private void ArmForEarliestRegistration()
     {
-        if (_scheduled.Min is { } earliest)
+        if (_schedule.Min is { } earliest)
         {
             Arm(earliest.DueTime);
         }
@@ -166,11 +166,11 @@ internal sealed class TimerScheduler
 
             if (dueTime == Timeout.InfiniteTimeSpan)
             {
-                _scheduled.Remove(registration);
+                _schedule.Remove(registration);
                 return true;
             }
 
-            TimeSpan dueAt = GetCurrentTime() + dueTime;
+            TimeSpan dueAt = GetTimeSinceStart() + dueTime;
 
             if (dueTime == TimeSpan.Zero)
             {
@@ -201,7 +201,7 @@ internal sealed class TimerScheduler
         lock (_lock)
         {
             registration.IsCancelled = true;
-            _scheduled.Remove(registration);
+            _schedule.Remove(registration);
         }
     }
 
@@ -209,10 +209,10 @@ internal sealed class TimerScheduler
     private void AddAtDueTime(Registration registration, TimeSpan dueTime)
     {
         // The set is ordered by due time, so the registration has to leave it before that time changes.
-        _scheduled.Remove(registration);
+        _schedule.Remove(registration);
 
         registration.DueTime = dueTime;
-        _scheduled.Add(registration);
+        _schedule.Add(registration);
     }
 
     /// <summary>Arms the waitable timer to signal at a time on the scheduler's clock.</summary>
@@ -221,12 +221,12 @@ internal sealed class TimerScheduler
     {
         // If the kernel wakes the scheduler before the due time, nothing is due yet and it simply re-arms for the
         // remainder.
-        _waitableTimer.Set(dueTime - GetCurrentTime());
+        _waitableTimer.Set(dueTime - GetTimeSinceStart());
         _armedDueTime = dueTime;
     }
 
-    /// <summary>Gets the time elapsed since the scheduler started, which due times are measured against.</summary>
-    private TimeSpan GetCurrentTime()
+    /// <summary>Gets the time since the scheduler started, which every due time is measured against.</summary>
+    private TimeSpan GetTimeSinceStart()
     {
         // GetElapsedTime converts through a double, so where Stopwatch.Frequency is not TimeSpan.TicksPerSecond the
         // result can be a 100 ns tick out. That is negligible next to the waitable timer's steps of roughly 0.5 ms.

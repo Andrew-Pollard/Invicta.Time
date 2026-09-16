@@ -27,7 +27,7 @@ internal static class Program
             return 1;
         }
 
-        (string Name, TimeProvider Provider)[] clocks =
+        (string Name, TimeProvider Provider)[] providers =
         [
             ("System", TimeProvider.System),
             ("HighResolution", HighResolutionTimeProvider.Instance),
@@ -36,7 +36,7 @@ internal static class Program
         await using StreamWriter writer = new(path);
         await writer.WriteLineAsync("provider,scenario,sample,milliseconds");
 
-        foreach ((string name, TimeProvider provider) in clocks)
+        foreach ((string name, TimeProvider provider) in providers)
         {
             await WriteSamplesAsync(
                 writer, name, "Task.Delay", await MeasureDelaysAsync(provider, interval, sampleCount));
@@ -44,7 +44,7 @@ internal static class Program
                 writer, name, "PeriodicTimer", await MeasureTicksAsync(provider, interval, sampleCount));
         }
 
-        Console.WriteLine($"Wrote {sampleCount * clocks.Length * 2} samples to {Path.GetFullPath(path)}");
+        Console.WriteLine($"Wrote {sampleCount * providers.Length * 2} samples to {Path.GetFullPath(path)}");
 
         return 0;
     }

@@ -22,9 +22,9 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
     private readonly IWorkItemRegistration _registration;
 
     // Guarded by _lock.
-    private bool _closed;
+    private bool _disposed;
     private int _callbacksRunning;
-    private TaskCompletionSource? _closeCompletion;
+    private TaskCompletionSource? _disposalCompletion;
     private readonly Lock _lock = new();
 
     /// <summary>Creates a timer that is not yet scheduled.</summary>
@@ -49,13 +49,13 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
     /// </exception>
     public bool Change(TimeSpan dueTime, TimeSpan period)
     {
-        ThrowIfInvalidTimeout(dueTime);
-        ThrowIfInvalidTimeout(period);
+        ThrowIfInvalidDueTimeOrPeriod(dueTime);
+        ThrowIfInvalidDueTimeOrPeriod(period);
 
         return _registration.Change(dueTime, period);
     }
 
-    private static void ThrowIfInvalidTimeout(
+    private static void ThrowIfInvalidDueTimeOrPeriod(
         TimeSpan value,
         [CallerArgumentExpression(nameof(value))] string? paramName = null)
     {
@@ -80,7 +80,7 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
 
         try
         {
-            RunCallback();
+            InvokeCallbackInCapturedContext();
         }
         finally
         {
@@ -93,7 +93,7 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         lock (_lock)
         {
             // A callback queued just before Dispose() is skipped rather than run after disposal.
-            if (_closed)
+            if (_disposed)
             {
                 return false;
             }
@@ -103,7 +103,7 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         }
     }
 
-    private void RunCallback()
+    private void InvokeCallbackInCapturedContext()
     {
         if (_executionContext is null)
         {
@@ -121,9 +121,9 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
         {
             _callbacksRunning--;
 
-            if (_callbacksRunning == 0 && _closed)
+            if (_callbacksRunning == 0 && _disposed)
             {
-                _closeCompletion?.TrySetResult();
+                _disposalCompletion?.TrySetResult();
             }
         }
     }
@@ -144,7 +144,7 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
 
         lock (_lock)
         {
-            _closed = true;
+            _disposed = true;
         }
     }
 
@@ -161,8 +161,8 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
                 return default;
             }
 
-            _closeCompletion ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            return new ValueTask(_closeCompletion.Task);
+            _disposalCompletion ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return new ValueTask(_disposalCompletion.Task);
         }
     }
 }

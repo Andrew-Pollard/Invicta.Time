@@ -48,7 +48,9 @@ public sealed class HighResolutionTimeProvider : TimeProvider
     /// <exception cref="PlatformNotSupportedException">
     /// The operating system is older than Windows 10 version 1803; check <see cref="IsSupported"/> first.
     /// </exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The waitable timer could not be created.</exception>
+    /// <exception cref="System.ComponentModel.Win32Exception">
+    /// The waitable timer could not be created or set.
+    /// </exception>
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         ArgumentNullException.ThrowIfNull(callback);

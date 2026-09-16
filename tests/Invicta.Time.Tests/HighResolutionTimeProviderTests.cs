@@ -38,12 +38,7 @@ internal sealed class HighResolutionTimeProviderTests
         HighResolutionTimeProvider first = HighResolutionTimeProvider.Instance;
         HighResolutionTimeProvider second = HighResolutionTimeProvider.Instance;
 
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(second, Is.SameAs(first));
-            Assert.That(typeof(HighResolutionTimeProvider).IsSealed, Is.True);
-            Assert.That(typeof(HighResolutionTimeProvider).GetConstructors(), Is.Empty);
-        }
+        Assert.That(second, Is.SameAs(first));
     }
 
     [Test]

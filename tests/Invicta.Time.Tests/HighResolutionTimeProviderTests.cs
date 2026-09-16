@@ -109,6 +109,29 @@ internal sealed class HighResolutionTimeProviderTests
     }
 
     [Test]
+    [Category(TestCategories.Timing)]
+    public async Task CreateTimer_SubMillisecondPeriod_Repeats()
+    {
+        int count = 0;
+        using ITimer timer = s_provider.CreateTimer(
+            _ => Interlocked.Increment(ref count), null, TimeSpan.Zero, TimeSpan.FromMilliseconds(0.5));
+
+        await Task.Delay(50);
+
+        // TimeProvider.System truncates the period to zero milliseconds and fires once.
+        Assert.That(Volatile.Read(ref count), Is.GreaterThan(1));
+    }
+
+    [Test]
+    public void CreateTimer_NegativeSubMillisecondDueTime_Throws()
+    {
+        // TimeProvider.System truncates the due time to zero milliseconds and fires immediately.
+        Assert.That(
+            () => s_provider.CreateTimer(_ => { }, null, TimeSpan.FromMilliseconds(-0.5), Timeout.InfiniteTimeSpan),
+            Throws.TypeOf<ArgumentOutOfRangeException>());
+    }
+
+    [Test]
     public async Task CreateTimer_ManyRandomDueTimes_EachFiresOnceAndNotEarly()
     {
         const int TimerCount = 500;

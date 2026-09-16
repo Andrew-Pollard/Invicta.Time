@@ -3,10 +3,8 @@
 
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
-
-using Microsoft.Win32.SafeHandles;
 
 namespace Invicta.Threading;
 
@@ -21,6 +19,8 @@ namespace Invicta.Threading;
 /// the deadline earlier, so the signal that <c>SetWaitableTimer</c> resets can never be one that was needed.
 /// </remarks>
 [SupportedOSPlatform("windows10.0.17134")]
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
+    Justification = "The scheduler is a process-lifetime singleton, so its kernel timer is released at exit.")]
 internal sealed class TimerScheduler
 {
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
@@ -31,19 +31,16 @@ internal sealed class TimerScheduler
     // Due times are measured from this Stopwatch timestamp.
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
-    private readonly KernelTimer _kernelTimer;
+    private readonly KernelTimer _kernelTimer = new();
 
     // Guarded by _lock. _armedDueTime is the due time the kernel timer is armed for, or TimeSpan.MaxValue if unarmed.
     private TimeSpan _armedDueTime = TimeSpan.MaxValue;
     private readonly SortedSet<Registration> _scheduled = new(s_dueTimeComparer);
     private readonly Lock _lock = new();
 
-    /// <summary>Creates the kernel timer and starts the scheduler thread.</summary>
-    /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
+    /// <summary>Starts the scheduler thread.</summary>
     private TimerScheduler()
     {
-        _kernelTimer = CreateKernelTimer();
-
         new Thread(Run)
         {
             IsBackground = true,
@@ -75,25 +72,6 @@ internal sealed class TimerScheduler
         int byDueTime = x.DueTime.CompareTo(y.DueTime);
 
         return byDueTime != 0 ? byDueTime : x.Id.CompareTo(y.Id);
-    }
-
-    /// <summary>Creates the high-resolution kernel timer that every registration shares.</summary>
-    /// <returns>The timer.</returns>
-    /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
-    private static KernelTimer CreateKernelTimer()
-    {
-        SafeWaitHandle handle = Kernel32.CreateWaitableTimerExW(
-            lpTimerAttributes: nint.Zero,
-            lpTimerName: null,
-            Kernel32.CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
-            Kernel32.TIMER_MODIFY_STATE | Kernel32.SYNCHRONIZE);
-
-        if (handle.IsInvalid)
-        {
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), "CreateWaitableTimerExW failed.");
-        }
-
-        return new KernelTimer(handle);
     }
 
     /// <summary>
@@ -251,19 +229,9 @@ internal sealed class TimerScheduler
     /// <exception cref="Win32Exception">The kernel timer could not be set.</exception>
     private void Arm(TimeSpan dueTime)
     {
-        // A negative due time is relative, in 100 ns intervals, which are TimeSpan ticks. If the kernel wakes the
-        // scheduler before the due time, nothing is due yet and it simply re-arms for the remainder.
-        TimeSpan delay = dueTime - GetCurrentTime();
-        long relativeDueTime = -Math.Max(delay.Ticks, 1);
-
-        bool armed = Kernel32.SetWaitableTimer(
-            _kernelTimer.SafeWaitHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: false);
-
-        if (!armed)
-        {
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
-        }
-
+        // If the kernel wakes the scheduler before the due time, nothing is due yet and it simply re-arms for the
+        // remainder.
+        _kernelTimer.Arm(dueTime - GetCurrentTime());
         _armedDueTime = dueTime;
     }
 
@@ -274,17 +242,6 @@ internal sealed class TimerScheduler
         // GetElapsedTime converts through a double, so where Stopwatch.Frequency is not TimeSpan.TicksPerSecond the
         // result can be a 100 ns tick out. That is negligible next to the kernel timer's steps of roughly 0.5 ms.
         return Stopwatch.GetElapsedTime(_startTimestamp);
-    }
-
-    /// <summary>Waits on a kernel timer, which <see cref="WaitHandle"/> itself has no constructor for.</summary>
-    private sealed class KernelTimer : WaitHandle
-    {
-        /// <summary>Creates a wait handle for a kernel timer.</summary>
-        /// <param name="handle">The kernel timer.</param>
-        public KernelTimer(SafeWaitHandle handle)
-        {
-            SafeWaitHandle = handle;
-        }
     }
 
     /// <summary>Represents a work item's place in the schedule.</summary>

@@ -184,14 +184,14 @@ internal sealed class TimerScheduler
             }
 
             // Arm first, so that if arming fails the registration keeps its previous schedule.
-            TimeSpan registrationDueTime = GetCurrentTime() + dueTime;
-            if (registrationDueTime < _armedDueTime)
+            TimeSpan dueAt = GetCurrentTime() + dueTime;
+            if (dueAt < _armedDueTime)
             {
-                Arm(registrationDueTime);
+                Arm(dueAt);
             }
 
             registration.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
-            AddAtDueTime(registration, registrationDueTime);
+            AddAtDueTime(registration, dueAt);
 
             return true;
         }

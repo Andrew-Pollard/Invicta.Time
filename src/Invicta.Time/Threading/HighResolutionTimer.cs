@@ -159,6 +159,7 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
     /// </summary>
     public void Dispose()
     {
+        // Cancelling stops the scheduler queueing callbacks; closing skips any it has queued already.
         _registration.Cancel();
 
         lock (_lock)

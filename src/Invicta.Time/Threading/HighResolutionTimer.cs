@@ -174,12 +174,10 @@ internal sealed class HighResolutionTimer : ITimer, IThreadPoolWorkItem
     /// <returns>A task that completes once any callbacks already running have finished.</returns>
     public ValueTask DisposeAsync()
     {
-        _registration.Cancel();
+        Dispose();
 
         lock (_lock)
         {
-            _closed = true;
-
             if (_callbacksRunning == 0)
             {
                 return default;

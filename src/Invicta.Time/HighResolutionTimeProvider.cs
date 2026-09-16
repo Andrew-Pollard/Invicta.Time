@@ -45,6 +45,10 @@ public sealed class HighResolutionTimeProvider : TimeProvider
     /// negative due time or period other than <see cref="Timeout.InfiniteTimeSpan"/> throws rather than being
     /// truncated to zero or to infinite.
     /// </remarks>
+    /// <exception cref="PlatformNotSupportedException">
+    /// The operating system is older than Windows 10 version 1803; check <see cref="IsSupported"/> first.
+    /// </exception>
+    /// <exception cref="System.ComponentModel.Win32Exception">The kernel timer could not be created.</exception>
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         ArgumentNullException.ThrowIfNull(callback);

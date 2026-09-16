@@ -5,9 +5,6 @@ using System.Diagnostics;
 
 using NUnit.Framework;
 
-// Latency assertions are unreliable when tests compete for the thread pool, so never run tests in parallel.
-[assembly: Parallelizable(ParallelScope.None)]
-
 namespace Invicta;
 
 /// <summary>

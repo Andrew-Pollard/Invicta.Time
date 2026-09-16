@@ -119,6 +119,7 @@ internal sealed class TimerScheduler
                 _scheduled.Remove(registration);
             }
 
+            // The global queue, not the calling thread's local one, so a busy thread cannot sit on a callback.
             ThreadPool.UnsafeQueueUserWorkItem(registration.WorkItem, preferLocal: false);
         }
     }

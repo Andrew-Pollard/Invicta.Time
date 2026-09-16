@@ -177,6 +177,8 @@ internal sealed class TimerScheduler
                 return false;
             }
 
+            registration.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
+
             if (dueTime == Timeout.InfiniteTimeSpan)
             {
                 _scheduled.Remove(registration);
@@ -190,7 +192,6 @@ internal sealed class TimerScheduler
                 Arm(dueAt);
             }
 
-            registration.Period = period == Timeout.InfiniteTimeSpan ? TimeSpan.Zero : period;
             AddAtDueTime(registration, dueAt);
 
             return true;

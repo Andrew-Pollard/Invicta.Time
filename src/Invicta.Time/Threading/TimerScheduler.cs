@@ -16,7 +16,7 @@ namespace Invicta.Threading;
 /// <remarks>
 /// There is no separate wake-up event. When a registration is scheduled before the currently armed time, the calling
 /// thread re-arms the kernel timer itself, which wakes the scheduler thread at the new time. Re-arming only ever moves
-/// the deadline earlier, so the signal that <c>SetWaitableTimer</c> resets can never be one that was needed.
+/// the deadline earlier, so the signal it resets can never be one that was needed.
 /// </remarks>
 [SupportedOSPlatform("windows10.0.17134")]
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",

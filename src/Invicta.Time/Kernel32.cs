@@ -48,16 +48,17 @@ internal static partial class Kernel32
     /// An optional <c>PTIMERAPCROUTINE</c> to queue as an APC when the timer signals, always zero here.
     /// </param>
     /// <param name="lpArgToCompletionRoutine">The argument passed to that APC, always zero here.</param>
-    /// <param name="fResume">Nonzero to wake a suspended system when the timer signals, zero here.</param>
-    /// <returns>A Win32 <c>BOOL</c>, which is a 4-byte int that is zero on failure.</returns>
+    /// <param name="fResume">Whether to wake a suspended system when the timer signals; never here.</param>
+    /// <returns>Whether the timer was activated.</returns>
     /// <seealso href="https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-setwaitabletimer"/>
     [LibraryImport(nameof(Kernel32), SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    public static partial int SetWaitableTimer(
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetWaitableTimer(
         SafeWaitHandle hTimer,
         in long lpDueTime,
         int lPeriod,
         nint pfnCompletionRoutine,
         nint lpArgToCompletionRoutine,
-        int fResume);
+        [MarshalAs(UnmanagedType.Bool)] bool fResume);
 }

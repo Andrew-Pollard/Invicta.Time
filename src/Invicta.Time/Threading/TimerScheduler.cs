@@ -256,10 +256,10 @@ internal sealed class TimerScheduler
         TimeSpan delay = dueTime - GetCurrentTime();
         long relativeDueTime = -Math.Max(delay.Ticks, 1);
 
-        int armed = Kernel32.SetWaitableTimer(
-            _kernelTimer.SafeWaitHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: 0);
+        bool armed = Kernel32.SetWaitableTimer(
+            _kernelTimer.SafeWaitHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: false);
 
-        if (armed == 0)
+        if (!armed)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
         }

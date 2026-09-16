@@ -31,7 +31,7 @@ internal sealed class TimerScheduler
     // Due times are measured from this Stopwatch timestamp.
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
-    private readonly SafeWaitHandle _timerHandle;
+    private readonly KernelTimer _kernelTimer;
 
     // Guarded by _lock. _armedDueTime is the due time the kernel timer is armed for, or TimeSpan.MaxValue if unarmed.
     private TimeSpan _armedDueTime = TimeSpan.MaxValue;
@@ -42,7 +42,7 @@ internal sealed class TimerScheduler
     /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
     private TimerScheduler()
     {
-        _timerHandle = CreateKernelTimer();
+        _kernelTimer = CreateKernelTimer();
 
         new Thread(Run)
         {
@@ -78,9 +78,9 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>Creates the high-resolution kernel timer that every registration shares.</summary>
-    /// <returns>A handle to the timer.</returns>
+    /// <returns>The timer.</returns>
     /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
-    private static SafeWaitHandle CreateKernelTimer()
+    private static KernelTimer CreateKernelTimer()
     {
         SafeWaitHandle handle = Kernel32.CreateWaitableTimerExW(
             lpTimerAttributes: nint.Zero,
@@ -93,7 +93,7 @@ internal sealed class TimerScheduler
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "CreateWaitableTimerExW failed.");
         }
 
-        return handle;
+        return new KernelTimer(handle);
     }
 
     /// <summary>
@@ -104,12 +104,12 @@ internal sealed class TimerScheduler
     /// An exception here goes unhandled on the scheduler thread and ends the process, deliberately: without the
     /// scheduler thread, no timer would ever fire again.
     /// </remarks>
-    /// <exception cref="Win32Exception">The kernel timer could not be waited on or re-armed.</exception>
+    /// <exception cref="Win32Exception">The kernel timer could not be re-armed.</exception>
     private void Run()
     {
         while (true)
         {
-            WaitForKernelTimer();
+            _kernelTimer.WaitOne();
 
             lock (_lock)
             {
@@ -118,16 +118,6 @@ internal sealed class TimerScheduler
                 QueueDueWorkItems();
                 ArmForEarliestRegistration();
             }
-        }
-    }
-
-    /// <summary>Blocks until the kernel timer signals.</summary>
-    /// <exception cref="Win32Exception">The wait failed.</exception>
-    private void WaitForKernelTimer()
-    {
-        if (Kernel32.WaitForSingleObject(_timerHandle, Kernel32.INFINITE) == Kernel32.WAIT_FAILED)
-        {
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), "WaitForSingleObject failed.");
         }
     }
 
@@ -266,7 +256,10 @@ internal sealed class TimerScheduler
         TimeSpan delay = dueTime - GetCurrentTime();
         long relativeDueTime = -Math.Max(delay.Ticks, 1);
 
-        if (Kernel32.SetWaitableTimer(_timerHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: 0) == 0)
+        int armed = Kernel32.SetWaitableTimer(
+            _kernelTimer.SafeWaitHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: 0);
+
+        if (armed == 0)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
         }
@@ -281,6 +274,17 @@ internal sealed class TimerScheduler
         // GetElapsedTime converts through a double, so where Stopwatch.Frequency is not TimeSpan.TicksPerSecond the
         // result can be a 100 ns tick out. That is negligible next to the kernel timer's steps of roughly 0.5 ms.
         return Stopwatch.GetElapsedTime(_startTimestamp);
+    }
+
+    /// <summary>Waits on a kernel timer, which <see cref="WaitHandle"/> itself has no constructor for.</summary>
+    private sealed class KernelTimer : WaitHandle
+    {
+        /// <summary>Creates a wait handle for a kernel timer.</summary>
+        /// <param name="handle">The kernel timer.</param>
+        public KernelTimer(SafeWaitHandle handle)
+        {
+            SafeWaitHandle = handle;
+        }
     }
 
     /// <summary>Represents a work item's place in the schedule.</summary>

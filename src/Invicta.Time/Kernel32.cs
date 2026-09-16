@@ -18,9 +18,6 @@ internal static partial class Kernel32
     public const uint TIMER_MODIFY_STATE = 0x0002;
     public const uint SYNCHRONIZE = 0x00100000;
 
-    public const uint INFINITE = 0xFFFFFFFF;
-    public const uint WAIT_FAILED = 0xFFFFFFFF;
-
     /// <summary>Creates or opens a waitable timer object.</summary>
     /// <param name="lpTimerAttributes">
     /// An optional <c>SECURITY_ATTRIBUTES</c> pointer, always zero here, so that structure is not declared.
@@ -63,13 +60,4 @@ internal static partial class Kernel32
         nint pfnCompletionRoutine,
         nint lpArgToCompletionRoutine,
         int fResume);
-
-    /// <summary>Waits until the object is signaled or the timeout elapses.</summary>
-    /// <param name="hHandle">The object to wait on.</param>
-    /// <param name="dwMilliseconds">The timeout, or <see cref="INFINITE"/> to wait without one.</param>
-    /// <returns><c>WAIT_OBJECT_0</c> once signaled, or <see cref="WAIT_FAILED"/> on failure.</returns>
-    /// <seealso href="https://learn.microsoft.com/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject"/>
-    [LibraryImport(nameof(Kernel32), SetLastError = true)]
-    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    public static partial uint WaitForSingleObject(SafeWaitHandle hHandle, uint dwMilliseconds);
 }

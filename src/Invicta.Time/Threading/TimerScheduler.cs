@@ -15,9 +15,10 @@ namespace Invicta.Threading;
 /// </summary>
 /// <remarks>
 /// There is no separate wake-up event. When a registration is scheduled before the currently armed time, the calling
-/// thread re-arms the waitable timer itself, which wakes the scheduler thread at the new time. Re-arming only ever moves
-/// the deadline earlier, so the signal it resets can never be one that was needed. A registration that is already
-/// due skips the waitable timer altogether: the calling thread queues it, as the scheduler thread would.
+/// thread re-arms the waitable timer itself, which wakes the scheduler thread at the new time. A registration that is
+/// already due skips the waitable timer altogether: the calling thread queues it, as the scheduler thread would, and
+/// then arms for the earliest still pending. Either way the timer ends up armed for the earliest registration there
+/// is, so a signal that re-arming resets is never one that was needed.
 /// </remarks>
 [SupportedOSPlatform("windows10.0.17134")]
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",

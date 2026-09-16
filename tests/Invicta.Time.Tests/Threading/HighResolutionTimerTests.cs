@@ -38,6 +38,30 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
         Assert.That(Volatile.Read(ref count), Is.EqualTo(stopped));
     }
 
+    [TestCaseSource(nameof(OneShotPeriods))]
+    public async Task Change_ToOneShotPeriod_StopsRepeating(TimeSpan period)
+    {
+        int count = 0;
+        using ITimer timer = _provider.CreateTimer(
+            _ => Interlocked.Increment(ref count), null, Due, Period);
+
+        await Task.Delay(Period * 4);
+        Assert.That(timer.Change(Due, period), Is.True);
+
+        // The timer fires once more, at the due time just set, and then stops.
+        await Task.Delay((Due + Period) * 2);
+        int afterLastTick = Volatile.Read(ref count);
+        await Task.Delay(Period * 4);
+
+        Assert.That(Volatile.Read(ref count), Is.EqualTo(afterLastTick));
+    }
+
+    private static IEnumerable<TestCaseData> OneShotPeriods()
+    {
+        yield return new TestCaseData(Timeout.InfiniteTimeSpan).SetArgDisplayNames("Infinite");
+        yield return new TestCaseData(TimeSpan.Zero).SetArgDisplayNames("Zero");
+    }
+
     [Test]
     public async Task Change_BeforeDueTime_Reschedules()
     {

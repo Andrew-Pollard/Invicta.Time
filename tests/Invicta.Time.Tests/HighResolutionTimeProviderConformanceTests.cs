@@ -163,6 +163,20 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     }
 
     [Test]
+    public async Task CreateTimer_LaterThanADisposedTimer_StillFires()
+    {
+        // Disposing the only pending timer leaves the schedule empty while its deadline is still armed.
+        ITimer pending = _provider.CreateTimer(_ => { }, null, Due, Timeout.InfiniteTimeSpan);
+        pending.Dispose();
+
+        TaskCompletionSource fired = new();
+        using ITimer later = _provider.CreateTimer(
+            _ => fired.TrySetResult(), null, Due * 2, Timeout.InfiniteTimeSpan);
+
+        await fired.Task.WaitAsync(CallbackTimeout);
+    }
+
+    [Test]
     [Category(TestCategories.Timing)]
     public async Task CreateTimer_WhileAnotherCallbackIsBlocked_StillFires()
     {

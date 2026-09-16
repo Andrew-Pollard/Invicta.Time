@@ -42,7 +42,7 @@ internal sealed class WaitableTimer : WaitHandle
     public void Set(TimeSpan delay)
     {
         // A negative due time is relative, in 100 ns intervals, which are TimeSpan ticks.
-        long relativeDueTime = -Math.Max(delay.Ticks, 1);
+        long relativeDueTime = -long.Max(delay.Ticks, 1);
 
         bool wasSet = Kernel32.SetWaitableTimer(
             SafeWaitHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: false);

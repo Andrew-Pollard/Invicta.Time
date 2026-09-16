@@ -35,7 +35,7 @@ internal sealed class TimerSchedulerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(firstToSecond, Is.Not.Zero);
-            Assert.That(Math.Sign(secondToFirst), Is.EqualTo(-Math.Sign(firstToSecond)));
+            Assert.That(int.Sign(secondToFirst), Is.EqualTo(-int.Sign(firstToSecond)));
         }
     }
 

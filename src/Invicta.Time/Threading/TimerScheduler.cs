@@ -97,9 +97,10 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>Queues every work item that is due to the thread pool, and reschedules the periodic ones.</summary>
-    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
     private void QueueDueWorkItems()
     {
+        Debug.Assert(_lock.IsHeldByCurrentThread);
+
         TimeSpan now = GetTimeSinceStart();
         while (_schedule.Min is { } registration && registration.DueTime <= now)
         {
@@ -133,9 +134,10 @@ internal sealed class TimerScheduler
         return nextDueTime > now ? nextDueTime : now + period;
     }
 
-    // The caller must hold _lock.
     private void ArmForEarliestRegistration()
     {
+        Debug.Assert(_lock.IsHeldByCurrentThread);
+
         if (_schedule.Min is { } earliest)
         {
             Arm(earliest.DueTime);
@@ -205,24 +207,26 @@ internal sealed class TimerScheduler
         }
     }
 
-    // The caller must hold _lock. The due time is on the scheduler's clock.
-    private void AddAtDueTime(Registration registration, TimeSpan dueTime)
+    private void AddAtDueTime(Registration registration, TimeSpan dueAt)
     {
+        Debug.Assert(_lock.IsHeldByCurrentThread);
+
         // The set is ordered by due time, so the registration has to leave it before that time changes.
         _schedule.Remove(registration);
 
-        registration.DueTime = dueTime;
+        registration.DueTime = dueAt;
         _schedule.Add(registration);
     }
 
     /// <summary>Arms the waitable timer to signal at a time on the scheduler's clock.</summary>
-    /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    private void Arm(TimeSpan dueTime)
+    private void Arm(TimeSpan dueAt)
     {
+        Debug.Assert(_lock.IsHeldByCurrentThread);
+
         // If the kernel wakes the scheduler before the due time, nothing is due yet and it simply re-arms for the
         // remainder.
-        _waitableTimer.Set(dueTime - GetTimeSinceStart());
-        _armedDueTime = dueTime;
+        _waitableTimer.Set(dueAt - GetTimeSinceStart());
+        _armedDueTime = dueAt;
     }
 
     /// <summary>Gets the time since the scheduler started, which every due time is measured against.</summary>

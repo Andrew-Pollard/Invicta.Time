@@ -123,7 +123,7 @@ internal sealed class HighResolutionTimeProviderConformanceTests(TimeProvider pr
     }
 
     [Test]
-    public async Task CreateTimer_WithZeroDueTime_FiresImmediately()
+    public async Task CreateTimer_WithZeroDueTime_Fires()
     {
         TaskCompletionSource fired = new();
         using ITimer timer = _provider.CreateTimer(

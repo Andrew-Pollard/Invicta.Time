@@ -57,6 +57,18 @@ internal sealed class HighResolutionTimerTests(TimeProvider provider)
     }
 
     [Test]
+    public async Task Change_FromStoppedToZeroDueTime_Fires()
+    {
+        TaskCompletionSource fired = new();
+        using ITimer timer = _provider.CreateTimer(
+            _ => fired.TrySetResult(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+
+        Assert.That(timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan), Is.True);
+
+        await fired.Task.WaitAsync(CallbackTimeout);
+    }
+
+    [Test]
     public async Task Change_FromInsideCallback_TakesEffect()
     {
         TimeSpan longPeriod = Period * 4;

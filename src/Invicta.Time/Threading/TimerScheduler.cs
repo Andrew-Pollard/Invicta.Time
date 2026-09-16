@@ -185,8 +185,19 @@ internal sealed class TimerScheduler
                 return true;
             }
 
-            // Arm first, so that if arming fails the registration keeps its previous schedule.
             TimeSpan dueAt = GetCurrentTime() + dueTime;
+
+            if (dueTime == TimeSpan.Zero)
+            {
+                // Already due, so queue it here rather than waiting for the waitable timer's next step.
+                AddAtDueTime(registration, dueAt);
+                QueueDueWorkItems();
+                ArmForEarliestRegistration();
+
+                return true;
+            }
+
+            // Arm first, so that if arming fails the registration keeps its previous schedule.
             if (dueAt < _armedDueTime)
             {
                 Arm(dueAt);

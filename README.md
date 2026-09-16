@@ -76,6 +76,8 @@ resolution, so they are inherited unchanged.
 - **Separate locks:** the scheduler's lock guards the schedule, and each timer's own lock guards its callbacks and
   disposal. Neither is taken while the other is held, so starting or finishing a callback never waits for the
   scheduler thread.
+- **Already due:** a due time of zero is queued by the calling thread rather than armed, so it costs only the thread
+  pool hop instead of waiting for the timer.
 - **Drift-free periods:** missed ticks are skipped rather than fired as a burst.
 
 ## Caveats

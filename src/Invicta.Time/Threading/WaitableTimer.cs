@@ -11,14 +11,14 @@ namespace Invicta.Threading;
 
 /// <summary>
 /// A Windows high-resolution waitable timer. A thread blocks on it with <see cref="WaitHandle.WaitOne()"/>, and
-/// <see cref="Arm"/> sets when it next signals.
+/// <see cref="Set"/> chooses when it next signals.
 /// </summary>
 [SupportedOSPlatform("windows10.0.17134")]
-internal sealed class KernelTimer : WaitHandle
+internal sealed class WaitableTimer : WaitHandle
 {
     /// <summary>Creates the timer, with the rights to wait on it and to set it.</summary>
     /// <exception cref="Win32Exception">The timer could not be created.</exception>
-    public KernelTimer()
+    public WaitableTimer()
     {
         SafeWaitHandle handle = Kernel32.CreateWaitableTimerExW(
             lpTimerAttributes: nint.Zero,
@@ -39,15 +39,15 @@ internal sealed class KernelTimer : WaitHandle
     /// The time until the timer signals; anything below one tick signals as soon as possible.
     /// </param>
     /// <exception cref="Win32Exception">The timer could not be set.</exception>
-    public void Arm(TimeSpan delay)
+    public void Set(TimeSpan delay)
     {
         // A negative due time is relative, in 100 ns intervals, which are TimeSpan ticks.
         long relativeDueTime = -Math.Max(delay.Ticks, 1);
 
-        bool armed = Kernel32.SetWaitableTimer(
+        bool wasSet = Kernel32.SetWaitableTimer(
             SafeWaitHandle, in relativeDueTime, 0, nint.Zero, nint.Zero, fResume: false);
 
-        if (!armed)
+        if (!wasSet)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWaitableTimer failed.");
         }

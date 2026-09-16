@@ -10,17 +10,17 @@ namespace Invicta.Threading;
 
 /// <summary>
 /// Owns one high-resolution waitable timer and one background thread, and queues work items to the thread pool when
-/// they are due. Pending registrations live in a sorted set ordered by due time; the kernel timer is always armed for
+/// they are due. Pending registrations live in a sorted set ordered by due time; the waitable timer is always armed for
 /// the earliest one.
 /// </summary>
 /// <remarks>
 /// There is no separate wake-up event. When a registration is scheduled before the currently armed time, the calling
-/// thread re-arms the kernel timer itself, which wakes the scheduler thread at the new time. Re-arming only ever moves
+/// thread re-arms the waitable timer itself, which wakes the scheduler thread at the new time. Re-arming only ever moves
 /// the deadline earlier, so the signal it resets can never be one that was needed.
 /// </remarks>
 [SupportedOSPlatform("windows10.0.17134")]
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
-    Justification = "The scheduler is a process-lifetime singleton, so its kernel timer is released at exit.")]
+    Justification = "The scheduler is a process-lifetime singleton, so its waitable timer is released at exit.")]
 internal sealed class TimerScheduler
 {
     private static readonly Lazy<TimerScheduler> s_instance = new(() => new TimerScheduler());
@@ -31,9 +31,9 @@ internal sealed class TimerScheduler
     // Due times are measured from this Stopwatch timestamp.
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
-    private readonly KernelTimer _kernelTimer = new();
+    private readonly WaitableTimer _waitableTimer = new();
 
-    // Guarded by _lock. _armedDueTime is the due time the kernel timer is armed for, or TimeSpan.MaxValue if unarmed.
+    // Guarded by _lock. _armedDueTime is the due time the waitable timer is armed for, or TimeSpan.MaxValue if unarmed.
     private TimeSpan _armedDueTime = TimeSpan.MaxValue;
     private readonly SortedSet<Registration> _scheduled = new(s_dueTimeComparer);
     private readonly Lock _lock = new();
@@ -53,10 +53,10 @@ internal sealed class TimerScheduler
 
     /// <summary>Gets the scheduler, creating it on first use.</summary>
     /// <remarks>
-    /// If the kernel timer cannot be created, every use of this property rethrows that first exception, as
+    /// If the waitable timer cannot be created, every use of this property rethrows that first exception, as
     /// <see cref="Lazy{T}"/> does. Creation only fails if the system is out of resources.
     /// </remarks>
-    /// <exception cref="Win32Exception">The kernel timer could not be created.</exception>
+    /// <exception cref="Win32Exception">The waitable timer could not be created.</exception>
     public static TimerScheduler Instance => s_instance.Value;
 
     /// <summary>
@@ -77,19 +77,19 @@ internal sealed class TimerScheduler
     }
 
     /// <summary>
-    /// The scheduler thread's loop: waits for the kernel timer, queues every work item that is due, and re-arms the
-    /// kernel timer for the next one.
+    /// The scheduler thread's loop: waits for the waitable timer, queues every work item that is due, and re-arms the
+    /// waitable timer for the next one.
     /// </summary>
     /// <remarks>
     /// An exception here goes unhandled on the scheduler thread and ends the process, deliberately: without the
     /// scheduler thread, no timer would ever fire again.
     /// </remarks>
-    /// <exception cref="Win32Exception">The kernel timer could not be re-armed.</exception>
+    /// <exception cref="Win32Exception">The waitable timer could not be re-armed.</exception>
     private void Run()
     {
         while (true)
         {
-            _kernelTimer.WaitOne();
+            _waitableTimer.WaitOne();
 
             lock (_lock)
             {
@@ -137,7 +137,7 @@ internal sealed class TimerScheduler
         return nextDueTime > now ? nextDueTime : now + period;
     }
 
-    /// <summary>Arms the kernel timer for whichever registration is due soonest, if there is one.</summary>
+    /// <summary>Arms the waitable timer for whichever registration is due soonest, if there is one.</summary>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
     private void ArmForEarliestRegistration()
     {
@@ -202,7 +202,7 @@ internal sealed class TimerScheduler
     /// <param name="registration">The registration to cancel.</param>
     private void Cancel(Registration registration)
     {
-        // The kernel timer is left armed; a spurious wake-up just finds nothing due and re-arms.
+        // The waitable timer is left armed; a spurious wake-up just finds nothing due and re-arms.
         lock (_lock)
         {
             registration.IsCancelled = true;
@@ -226,15 +226,15 @@ internal sealed class TimerScheduler
         _scheduled.Add(registration);
     }
 
-    /// <summary>Arms the kernel timer to signal at a due time.</summary>
+    /// <summary>Arms the waitable timer to signal at a due time.</summary>
     /// <param name="dueTime">The time to signal at, on the scheduler's clock.</param>
     /// <remarks>The caller must hold <see cref="_lock"/>.</remarks>
-    /// <exception cref="Win32Exception">The kernel timer could not be set.</exception>
+    /// <exception cref="Win32Exception">The waitable timer could not be set.</exception>
     private void Arm(TimeSpan dueTime)
     {
         // If the kernel wakes the scheduler before the due time, nothing is due yet and it simply re-arms for the
         // remainder.
-        _kernelTimer.Arm(dueTime - GetCurrentTime());
+        _waitableTimer.Set(dueTime - GetCurrentTime());
         _armedDueTime = dueTime;
     }
 
@@ -243,7 +243,7 @@ internal sealed class TimerScheduler
     private TimeSpan GetCurrentTime()
     {
         // GetElapsedTime converts through a double, so where Stopwatch.Frequency is not TimeSpan.TicksPerSecond the
-        // result can be a 100 ns tick out. That is negligible next to the kernel timer's steps of roughly 0.5 ms.
+        // result can be a 100 ns tick out. That is negligible next to the waitable timer's steps of roughly 0.5 ms.
         return Stopwatch.GetElapsedTime(_startTimestamp);
     }
 

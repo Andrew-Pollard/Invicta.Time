@@ -71,7 +71,7 @@ resolution, so they are inherited unchanged.
 - **Sorted set:** pending timers are kept in a `SortedSet`, so creating, changing and cancelling a timer are all
   O(log n). Each schedule, including each tick of a periodic timer, allocates about 50 bytes; a 1 ms periodic timer
   allocates about 50 KB a second.
-- **Armed for the earliest deadline:** a thread scheduling a sooner timer re-arms the kernel timer itself, so no
+- **Armed for the earliest deadline:** a thread scheduling a sooner timer re-arms the waitable timer itself, so no
   wake-up event is needed.
 - **Separate locks:** the scheduler's lock guards the schedule, and each timer's own lock guards its callbacks and
   disposal. Neither is taken while the other is held, so starting or finishing a callback never waits for the
@@ -89,7 +89,7 @@ resolution, so they are inherited unchanged.
   alone, it does not disturb other processes either. The measurements are in
   [Invicta.TimerInvestigation][timerinvestigation].
 - **First timer in a process:** the first 1 ms callback arrives after about 6 ms, against 1.1 ms once warm, while the
-  code is jitted, the kernel timer is created and the scheduler thread starts. Await a short `Task.Delay` on the
+  code is jitted, the waitable timer is created and the scheduler thread starts. Await a short `Task.Delay` on the
   provider first where that matters.
 - **Unaffected APIs:** `Thread.Sleep`, and `Task.Delay(TimeSpan)` without a provider, keep the system tick.
 

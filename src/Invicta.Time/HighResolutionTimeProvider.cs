@@ -19,7 +19,7 @@ namespace Invicta;
 /// (<c>GetSystemTimePreciseAsFileTime</c> and <c>QueryPerformanceCounter</c>), so they're inherited unchanged.
 /// </para>
 /// <para>
-/// All timers share one dedicated scheduler thread and one kernel timer object.
+/// All timers share one dedicated scheduler thread and one waitable timer.
 /// </para>
 /// <para>
 /// Requires Windows 10 version 1803 (build 17134) or later. Check <see cref="IsSupported"/> before using
@@ -48,7 +48,7 @@ public sealed class HighResolutionTimeProvider : TimeProvider
     /// <exception cref="PlatformNotSupportedException">
     /// The operating system is older than Windows 10 version 1803; check <see cref="IsSupported"/> first.
     /// </exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The kernel timer could not be created.</exception>
+    /// <exception cref="System.ComponentModel.Win32Exception">The waitable timer could not be created.</exception>
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         ArgumentNullException.ThrowIfNull(callback);

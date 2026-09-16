@@ -39,6 +39,12 @@ public sealed class HighResolutionTimeProvider : TimeProvider
     public static HighResolutionTimeProvider Instance { get; } = new();
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Due times and periods keep their full <see cref="TimeSpan"/> resolution instead of being truncated to whole
+    /// milliseconds, so a period shorter than a millisecond repeats rather than firing once. For the same reason a
+    /// negative due time or period other than <see cref="Timeout.InfiniteTimeSpan"/> throws rather than being
+    /// truncated to zero or to infinite.
+    /// </remarks>
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         ArgumentNullException.ThrowIfNull(callback);
